@@ -3,8 +3,8 @@ import { Providers } from "@/components/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Pactline | Provider funded coverage",
-  description: "A clear line from a provider promise to a fair settlement.",
+  title: "Pactline | Service terms in the open",
+  description: "A public record for provider terms, uptime evidence, and service claims.",
   icons: { icon: "/icon.svg", shortcut: "/icon.svg", apple: "/icon.svg" },
 };
 

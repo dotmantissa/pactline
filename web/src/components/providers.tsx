@@ -11,9 +11,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       config={{
         appearance: {
           theme: "light",
-          accentColor: "#5e30e3",
+          accentColor: "#1c1cb2",
           logo: "/icon.svg",
-          landingHeader: "Providers make the promise. Pactline makes it count.",
+          landingHeader: "Terms in the open. A record when it matters.",
           walletList: [],
         },
         loginMethods: ["email"],
