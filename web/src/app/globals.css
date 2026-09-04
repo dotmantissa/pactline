@@ -115,6 +115,31 @@ a {
   gap: 10px;
 }
 
+.top-nav {
+  align-items: center;
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  margin-right: 28px;
+}
+
+.top-tab {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 36px;
+  padding: 0 7px;
+  transition: border-color 180ms ease, color 180ms ease;
+}
+
+.top-tab:hover,
+.top-tab.selected {
+  border-bottom-color: var(--purple);
+  color: var(--ink);
+}
+
 .network {
   align-items: center;
   color: var(--muted);
@@ -268,6 +293,189 @@ h1 {
   line-height: 1.65;
   margin: 0;
   max-width: 600px;
+}
+
+.how-page {
+  padding-top: 72px;
+}
+
+.how-intro {
+  align-items: end;
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 64px;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+  padding-bottom: 54px;
+}
+
+.how-intro h1 {
+  margin-bottom: 22px;
+}
+
+.how-summary {
+  border-left: 3px solid var(--yellow);
+  padding: 8px 0 8px 22px;
+}
+
+.how-summary strong {
+  display: block;
+  font-size: 28px;
+  letter-spacing: -0.045em;
+  line-height: 1.08;
+  margin-bottom: 11px;
+  max-width: 330px;
+}
+
+.how-summary p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 350px;
+}
+
+.how-steps {
+  display: grid;
+  gap: 28px;
+  grid-template-columns: repeat(4, 1fr);
+  padding: 42px 0 56px;
+}
+
+.how-step {
+  border-top: 3px solid var(--ink);
+  display: flex;
+  flex-direction: column;
+  min-height: 260px;
+  padding-top: 15px;
+}
+
+.step-topline {
+  align-items: center;
+  color: var(--purple);
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 34px;
+}
+
+.step-number {
+  color: var(--muted);
+  font-family: "DM Mono", monospace;
+  font-size: 11px;
+}
+
+.how-step h2 {
+  font-size: 19px;
+  letter-spacing: -0.035em;
+  margin-bottom: 10px;
+}
+
+.how-step > p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.step-detail {
+  align-items: center;
+  color: var(--ink);
+  display: flex;
+  font-size: 11px;
+  gap: 7px;
+  line-height: 1.45;
+  margin-top: auto;
+}
+
+.step-detail svg {
+  color: var(--purple);
+  flex: 0 0 auto;
+}
+
+.how-benefits {
+  border-bottom: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 64px;
+  grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr);
+  padding: 42px 0;
+}
+
+.how-benefits h2 {
+  font-size: 26px;
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  margin: 0;
+  max-width: 280px;
+}
+
+.benefit-list {
+  display: grid;
+  gap: 22px;
+}
+
+.benefit-item {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: 24px minmax(0, 1fr);
+}
+
+.benefit-item > svg {
+  color: var(--purple);
+  margin-top: 2px;
+}
+
+.benefit-item strong {
+  display: block;
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.benefit-item p {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+  margin: 0;
+  max-width: 480px;
+}
+
+.how-start {
+  align-items: center;
+  background: var(--yellow);
+  display: flex;
+  gap: 24px;
+  justify-content: space-between;
+  margin-top: 42px;
+  padding: 24px 28px;
+}
+
+.how-start .section-kicker {
+  color: var(--ink);
+  margin-bottom: 7px;
+}
+
+.how-start h2 {
+  font-size: 24px;
+  letter-spacing: -0.04em;
+  margin: 0 0 5px;
+}
+
+.how-start p:last-child {
+  font-size: 12px;
+  margin: 0;
+}
+
+.how-start .primary-button.light {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--yellow);
+  flex: 0 0 auto;
+}
+
+.how-start .primary-button.light:hover {
+  background: var(--white);
+  border-color: var(--white);
+  color: var(--ink);
 }
 
 .hero-aside {
@@ -804,6 +1012,24 @@ h1 {
     padding-top: 52px;
   }
 
+  .how-page {
+    padding-top: 52px;
+  }
+
+  .how-intro {
+    gap: 40px;
+    grid-template-columns: 1fr;
+  }
+
+  .how-steps {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .how-benefits {
+    gap: 40px;
+    grid-template-columns: 1fr;
+  }
+
   .hero-aside {
     max-width: 390px;
   }
@@ -828,6 +1054,16 @@ h1 {
     gap: 7px;
   }
 
+  .top-nav {
+    margin-left: auto;
+    margin-right: 10px;
+  }
+
+  .top-tab {
+    font-size: 11px;
+    padding: 0 4px;
+  }
+
   .top-actions .primary-button {
     min-height: 36px;
     padding: 0 11px;
@@ -845,6 +1081,41 @@ h1 {
 
   .hero-copy {
     font-size: 15px;
+  }
+
+  .how-page {
+    padding-top: 44px;
+  }
+
+  .how-intro {
+    gap: 30px;
+    padding-bottom: 35px;
+  }
+
+  .how-steps {
+    gap: 28px 18px;
+    grid-template-columns: 1fr;
+    padding: 34px 0 42px;
+  }
+
+  .how-step {
+    min-height: 0;
+  }
+
+  .step-topline {
+    margin-bottom: 20px;
+  }
+
+  .how-benefits {
+    gap: 32px;
+    padding: 34px 0;
+  }
+
+  .how-start {
+    align-items: start;
+    flex-direction: column;
+    margin-top: 32px;
+    padding: 22px;
   }
 
   .stats {

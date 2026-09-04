@@ -54,6 +54,73 @@ function dateLabel(value: string | number) {
   );
 }
 
+function HowItWorks({ onStart }: { onStart: () => void }) {
+  return (
+    <section className="how-page" aria-labelledby="how-title">
+      <div className="how-intro">
+        <div>
+          <p className="eyebrow">A clearer way to ask for what you are owed</p>
+          <h1 id="how-title">A service promise should come with a receipt.</h1>
+          <p className="hero-copy">Pactline turns an SLA into a small, self contained process. You set the rule, the monitor keeps the record, and GenLayer helps make the call when the numbers get uncomfortable.</p>
+        </div>
+        <div className="how-summary">
+          <span className="aside-kicker">The whole idea</span>
+          <strong>Promise. Proof. Payout.</strong>
+          <p>No chasing support, no arguing over a screenshot, and no claim so small that it is not worth making.</p>
+        </div>
+      </div>
+
+      <div className="how-steps">
+        <article className="how-step">
+          <div className="step-topline"><span className="step-number">01</span><ShieldCheck size={19} /></div>
+          <h2>Register the promise</h2>
+          <p>Tell Pactline which service you pay for, where its health check lives, and what should happen when uptime falls short.</p>
+          <div className="step-detail"><Check size={14} /> Threshold, time window, and settlement share</div>
+        </article>
+        <article className="how-step">
+          <div className="step-topline"><span className="step-number">02</span><Activity size={19} /></div>
+          <h2>Let the monitor keep score</h2>
+          <p>The monitor checks the public health endpoint and publishes a signed snapshot. The evidence stays close to the agreement instead of disappearing into an inbox.</p>
+          <div className="step-detail"><FileCheck2 size={14} /> Signed uptime evidence with a source link</div>
+        </article>
+        <article className="how-step">
+          <div className="step-topline"><span className="step-number">03</span><CircleAlert size={19} /></div>
+          <h2>File the claim</h2>
+          <p>When the snapshot shows a breach, file a claim. GenLayer validators compare the evidence with the rule and record the decision in the contract.</p>
+          <div className="step-detail"><ArrowUpRight size={14} /> A decision that can be checked later</div>
+        </article>
+        <article className="how-step">
+          <div className="step-topline"><span className="step-number">04</span><ClipboardCheck size={19} /></div>
+          <h2>Collect the result</h2>
+          <p>A successful breach claim settles the agreed refund or records the service credit. The money does not need another meeting to find its way home.</p>
+          <div className="step-detail"><Check size={14} /> Automatic settlement from the deposit</div>
+        </article>
+      </div>
+
+      <section className="how-benefits">
+        <div>
+          <p className="section-kicker">Why use Pactline</p>
+          <h2>It makes the small claims worth making.</h2>
+        </div>
+        <div className="benefit-list">
+          <div className="benefit-item"><ShieldCheck size={18} /><div><strong>Evidence with context</strong><p>The source URL, signed snapshot, and validator decision travel together.</p></div></div>
+          <div className="benefit-item"><CloudOff size={18} /><div><strong>Less awkward chasing</strong><p>The service can miss its promise without you writing the fifth polite follow up.</p></div></div>
+          <div className="benefit-item"><ClipboardCheck size={18} /><div><strong>A rule you chose</strong><p>You decide the threshold and compensation before the outage has a chance to become an argument.</p></div></div>
+        </div>
+      </section>
+
+      <section className="how-start">
+        <div>
+          <p className="section-kicker">Ready when you are</p>
+          <h2>Put one service on the line.</h2>
+          <p>It takes one agreement and a deposit to start keeping a proper receipt.</p>
+        </div>
+        <button className="primary-button light" onClick={onStart}><Plus size={16} /> Add a service</button>
+      </section>
+    </section>
+  );
+}
+
 export default function Home() {
   const { ready, authenticated } = usePrivy();
   const { address, provider, connect, disconnect, wrongNetwork } = useWallet();
@@ -65,6 +132,7 @@ export default function Home() {
   const [form, setForm] = useState(initialForm);
   const [busy, setBusy] = useState("");
   const [toast, setToast] = useState("");
+  const [view, setView] = useState<"desk" | "how">("desk");
 
   const refresh = useCallback(async () => {
     const [nextAgreements, nextSnapshots, nextClaims, serviceResponse] = await Promise.all([
@@ -202,6 +270,10 @@ export default function Home() {
           <span className="brand-name">Pactline</span>
           <span className="brand-note">Claims desk</span>
         </Link>
+        <nav className="top-nav" aria-label="Pactline views" role="tablist">
+          <button className={`top-tab ${view === "desk" ? "selected" : ""}`} type="button" role="tab" aria-selected={view === "desk"} onClick={() => setView("desk")}>Claims desk</button>
+          <button className={`top-tab ${view === "how" ? "selected" : ""}`} type="button" role="tab" aria-selected={view === "how"} onClick={() => setView("how")}>How it works</button>
+        </nav>
         <div className="top-actions">
           <span className="network">Studio network</span>
           {authenticated ? (
@@ -225,6 +297,8 @@ export default function Home() {
           )}
         </AnimatePresence>
 
+        {view === "desk" ? (
+          <>
         <section className="hero">
           <div>
             <p className="eyebrow">Your service promise, with a paper trail</p>
@@ -321,6 +395,10 @@ export default function Home() {
             {wrongNetwork && <p className="wrong-network">Your embedded wallet could not switch to GenLayer Studio.</p>}
           </aside>
         </section>
+          </>
+        ) : (
+          <HowItWorks onStart={() => { setView("desk"); setShowRegister(true); }} />
+        )}
       </section>
 
       <AnimatePresence>
