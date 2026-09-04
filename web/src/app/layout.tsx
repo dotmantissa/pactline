@@ -10,15 +10,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "try{document.documentElement.dataset.theme=localStorage.getItem('pactline-theme')||(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light')}catch(e){}",
-          }}
-        />
-      </head>
+    <html lang="en">
       <body>
         <Providers>{children}</Providers>
       </body>

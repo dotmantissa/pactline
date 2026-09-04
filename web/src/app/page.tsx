@@ -13,11 +13,9 @@ import {
   CloudOff,
   FileCheck2,
   LogOut,
-  Moon,
   Plus,
   RefreshCw,
   ShieldCheck,
-  Sun,
   X,
 } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
@@ -67,7 +65,6 @@ export default function Home() {
   const [form, setForm] = useState(initialForm);
   const [busy, setBusy] = useState("");
   const [toast, setToast] = useState("");
-  const [dark, setDark] = useState(false);
 
   const refresh = useCallback(async () => {
     const [nextAgreements, nextSnapshots, nextClaims, serviceResponse] = await Promise.all([
@@ -83,9 +80,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    // The layout script applies the saved theme before hydration.
+    // Load the external service and contract state when the workbench opens.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setDark(document.documentElement.dataset.theme === "dark");
     void refresh();
     const timer = window.setInterval(() => void refresh(), 15000);
     return () => window.clearInterval(timer);
@@ -106,13 +102,6 @@ export default function Home() {
     { label: "Claims resolved", value: recentClaims.length },
     { label: "Demo uptime", value: service ? formatUptime(service.uptime_bps) : "100.00%" },
   ];
-
-  function toggleTheme() {
-    const next = !dark;
-    setDark(next);
-    document.documentElement.dataset.theme = next ? "dark" : "light";
-    localStorage.setItem("pactline-theme", next ? "dark" : "light");
-  }
 
   async function controlService(outage: boolean) {
     setBusy("service");
@@ -211,13 +200,10 @@ export default function Home() {
         <Link className="brand" href="/">
           <span className="brand-mark"><Image src="/icon.svg" alt="" width={26} height={26} priority /></span>
           <span className="brand-name">Pactline</span>
-          <span className="brand-note">SLA claims</span>
+          <span className="brand-note">Claims desk</span>
         </Link>
         <div className="top-actions">
-          <span className="network">GenLayer Studio</span>
-          <button className="icon-button" onClick={toggleTheme} aria-label="Toggle colour mode" title="Toggle colour mode">
-            {dark ? <Sun size={17} /> : <Moon size={17} />}
-          </button>
+          <span className="network">Studio network</span>
           {authenticated ? (
             <>
               <span className="mono" style={{ fontSize: 11 }}>{shortAddress(address)}</span>
@@ -241,25 +227,26 @@ export default function Home() {
 
         <section className="hero">
           <div>
-            <p className="eyebrow">A fair line for unreliable software</p>
-            <h1>When service slips, the promise should do something.</h1>
-            <p className="hero-copy">Pactline turns uptime promises into claims that can be checked, decided, and settled without a long email thread or a heroic spreadsheet.</p>
+            <p className="eyebrow">Your service promise, with a paper trail</p>
+            <h1>Keep the receipt when uptime goes missing.</h1>
+            <p className="hero-copy">Pactline watches the service you pay for, keeps signed evidence, and gives a small claim a fair chance to finish itself.</p>
           </div>
           <div className="hero-aside">
-            <strong>Evidence first. Feelings later.</strong>
+            <span className="aside-kicker">The Pactline rule</span>
+            <strong>Show the evidence. Make the call. Move on.</strong>
             <span>Every decision keeps the source URL, the signed snapshot, and the validator result beside the money.</span>
           </div>
         </section>
 
         <section className="stats">
-          {stats.map((stat) => <div className="stat" key={stat.label}><span className="stat-label">{stat.label}</span><strong className="stat-value">{stat.value}</strong></div>)}
+          {stats.map((stat, index) => <div className={`stat stat-${index + 1}`} key={stat.label}><span className="stat-label">{stat.label}</span><strong className="stat-value">{stat.value}</strong></div>)}
         </section>
 
         <section className="content-grid">
           <div>
             <div className="section-head">
-              <div><h2>Your service agreements</h2><span>{authenticated ? "The promises you are keeping an eye on" : "Sign in to see your agreements"}</span></div>
-              <button className="primary-button light" onClick={() => authenticated ? setShowRegister(true) : connect()}><Plus size={16} /> New agreement</button>
+              <div><p className="section-kicker">Your side of the line</p><h2>Service agreements</h2><span>{authenticated ? "The promises you are keeping an eye on" : "Sign in to see your agreements"}</span></div>
+              <button className="primary-button light" onClick={() => authenticated ? setShowRegister(true) : connect()}><Plus size={16} /> Add a service</button>
             </div>
             <div className="panel">
               {customerAgreements.length ? (
@@ -293,13 +280,13 @@ export default function Home() {
                   <ClipboardCheck size={27} />
                   <h3>No promises on the line yet</h3>
                   <p>Register the service you pay for. We will watch the evidence and do the awkward asking when uptime falls short.</p>
-                  <button className="primary-button light" onClick={() => authenticated ? setShowRegister(true) : connect()}><Plus size={16} /> Register an agreement</button>
+                  <button className="primary-button light" onClick={() => authenticated ? setShowRegister(true) : connect()}><Plus size={16} /> Put one on the line</button>
                 </div>
               )}
             </div>
 
             <div className="activity">
-              <div className="section-head"><div><h2>Decision log</h2><span>What Pactline has recorded lately</span></div><button className="icon-button" onClick={() => void refresh()} aria-label="Refresh data" title="Refresh data"><RefreshCw size={16} /></button></div>
+              <div className="section-head"><div><p className="section-kicker">A short memory</p><h2>Decision log</h2><span>What Pactline has recorded lately</span></div><button className="icon-button" onClick={() => void refresh()} aria-label="Refresh data" title="Refresh data"><RefreshCw size={16} /></button></div>
               <div className="panel activity-list">
                 {recentClaims.length ? recentClaims.slice(-4).reverse().map((claim) => (
                   <div className="activity-item" key={claim.claim_id}>
@@ -312,7 +299,7 @@ export default function Home() {
           </div>
 
           <aside>
-            <div className="section-head"><div><h2>Monitor room</h2><span>The demo service is intentionally touchy</span></div></div>
+            <div className="section-head"><div><p className="section-kicker">Live evidence</p><h2>Monitor room</h2><span>The demo service is intentionally touchy</span></div></div>
             <div className="panel monitor-panel">
               <div className="monitor-status">
                 <span className={`service-pulse ${service?.outage ? "down" : ""}`} />
@@ -327,11 +314,11 @@ export default function Home() {
               </div>
               <div className="monitor-actions">
                 <button className="ghost-button" disabled={busy === "service"} onClick={() => void controlService(!service?.outage)}>{service?.outage ? <Check size={14} /> : <CloudOff size={14} />}{service?.outage ? "Bring it back" : "Cause an outage"}</button>
-                <button className="ghost-button" onClick={() => void refresh()}><RefreshCw size={14} /> Refresh</button>
+                <button className="ghost-button" onClick={() => void refresh()}><RefreshCw size={14} /> Check again</button>
               </div>
               {lastSnapshot && <div className="detail-strip"><FileCheck2 size={15} /><span>Latest signed snapshot</span><a href={lastSnapshot.evidence_url} target="_blank" rel="noreferrer">View evidence <ArrowUpRight size={12} /></a></div>}
             </div>
-            {wrongNetwork && <p style={{ color: "#b84136", fontSize: 12, marginTop: 12 }}>Your embedded wallet could not switch to GenLayer Studio.</p>}
+            {wrongNetwork && <p className="wrong-network">Your embedded wallet could not switch to GenLayer Studio.</p>}
           </aside>
         </section>
       </section>
