@@ -9,5 +9,5 @@
     "noEmit": true,
     "typeRoots": ["../web/node_modules/@types"]
   },
-  "include": ["monitor.ts"]
+  "include": ["monitor.ts", "types.d.ts"]
 }

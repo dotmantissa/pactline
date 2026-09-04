@@ -4,14 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx monitor.ts",
+    "dev": "node --experimental-strip-types monitor.ts",
     "typecheck": "../web/node_modules/.bin/tsc --noEmit"
   },
   "dependencies": {
     "dotenv": "^17.2.2",
     "genlayer-js": "^1.1.8",
-    "pg": "^8.16.3",
-    "tsx": "^4.23.13"
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/node": "^20",

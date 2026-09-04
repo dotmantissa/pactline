@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "db:init": "tsx scripts/init-db.ts"
+    "db:init": "node scripts/init-db.mjs"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.38.0",
@@ -18,8 +18,7 @@
     "next": "^16.3.3",
     "pg": "^8.16.3",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "tsx": "^4.23.13"
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@types/node": "^20",
