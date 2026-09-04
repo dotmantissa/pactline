@@ -1,0 +1,23 @@
+{
+  "name": "pactline",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "dev:worker": "npm --prefix worker run dev",
+    "build": "npm --prefix web run build",
+    "lint": "npm run lint:contracts && npm --prefix web run lint",
+    "typecheck": "npm --prefix web run typecheck",
+    "test": ".venv/bin/pytest tests/direct -q",
+    "test:contracts": ".venv/bin/pytest tests/direct -v",
+    "test:integration": ".venv/bin/gltest tests/integration -v -s --network studionet",
+    "deploy:studionet": "node deploy/deploy.mjs",
+    "verify:studionet": "node deploy/verify.mjs",
+    "verify": "npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "devDependencies": {
+    "dotenv": "^17.2.2",
+    "genlayer-js": "^1.1.8"
+  }
+}
