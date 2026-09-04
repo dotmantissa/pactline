@@ -17,3 +17,8 @@ web/.env.local
 worker/.env
 deploy/addresses.local.json
 .task-checklist.md
+
+/worker/node_modules
+/web/node_modules
+.vercel/
+**/.vercel/

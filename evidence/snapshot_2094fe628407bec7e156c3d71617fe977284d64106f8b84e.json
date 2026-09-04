@@ -1,0 +1,9 @@
+{
+  "agreement_id": "1",
+  "period_start": "2026-09-03T12:46:55.187Z",
+  "period_end": "2026-09-04T12:46:55.187Z",
+  "uptime_bps": 10000,
+  "total_checks": 6,
+  "failed_checks": 0,
+  "signature": "37a3ea762737025cc0a24a0533fc186dfe354066e754f5669b9e7802ee091031"
+}
