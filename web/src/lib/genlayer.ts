@@ -4,7 +4,7 @@ import { createClient, chains } from "genlayer-js";
 import type { Hash } from "genlayer-js/types";
 import { TransactionStatus, transactionsStatusNumberToName } from "genlayer-js/types";
 import { CONTRACT_ADDRESS, RPC_URL, TX_POLL_INTERVAL, TX_POLL_RETRIES } from "@/lib/constants";
-import type { Agreement, Claim, Snapshot } from "@/lib/types";
+import type { Claim, Service, Snapshot, Subscription } from "@/lib/types";
 
 type Provider = {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
@@ -103,15 +103,26 @@ function parse<T>(value: unknown): T {
   return typeof value === "string" ? (JSON.parse(value) as T) : (value as T);
 }
 
-export async function readAgreements(): Promise<Agreement[]> {
+export async function readServices(): Promise<Service[]> {
   if (!CONTRACT_ADDRESS) return [];
   const value = await reader().readContract({
     address: CONTRACT_ADDRESS as `0x${string}`,
-    functionName: "get_agreements",
+    functionName: "get_services",
     args: [],
     jsonSafeReturn: true,
   });
-  return parse<Agreement[]>(value);
+  return parse<Service[]>(value);
+}
+
+export async function readSubscriptions(): Promise<Subscription[]> {
+  if (!CONTRACT_ADDRESS) return [];
+  const value = await reader().readContract({
+    address: CONTRACT_ADDRESS as `0x${string}`,
+    functionName: "get_subscriptions",
+    args: [],
+    jsonSafeReturn: true,
+  });
+  return parse<Subscription[]>(value);
 }
 
 export async function readSnapshots(): Promise<Snapshot[]> {

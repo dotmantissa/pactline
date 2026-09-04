@@ -1,6 +1,6 @@
-export type Agreement = {
-  agreement_id: string;
-  customer: string;
+export type Service = {
+  service_id: string;
+  provider: string;
   service_name: string;
   service_url: string;
   terms: string;
@@ -8,16 +8,32 @@ export type Agreement = {
   window_days: number;
   compensation_type: "refund" | "credit";
   compensation_bps: number;
-  deposit_wei: number;
-  status: string;
+  subscription_price_wei: number;
+  collateral_wei: number;
+  reserved_wei: number;
+  provider_revenue_wei: number;
+  subscriber_count: number;
+  status: "active" | "paused";
   created_at: number;
-  claim_count: number;
   last_uptime_bps: number;
+};
+
+export type Subscription = {
+  subscription_id: string;
+  service_id: string;
+  customer: string;
+  provider: string;
+  subscription_price_wei: number;
+  max_payout_wei: number;
+  started_at: number;
+  status: "active";
+  claim_count: number;
+  compensated_wei: number;
 };
 
 export type Snapshot = {
   snapshot_id: string;
-  agreement_id: string;
+  service_id: string;
   period_start: string;
   period_end: string;
   uptime_bps: number;
@@ -31,8 +47,10 @@ export type Snapshot = {
 
 export type Claim = {
   claim_id: string;
-  agreement_id: string;
+  service_id: string;
+  subscription_id: string;
   customer: string;
+  provider: string;
   snapshot_id: string;
   status: "breached" | "clear" | "unavailable";
   uptime_bps: number;

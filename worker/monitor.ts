@@ -35,8 +35,8 @@ const account = createAccount(
 );
 const client = createClient({ chain: studionet, account, endpoint: rpc });
 
-type Agreement = {
-  agreement_id: string;
+type Service = {
+  service_id: string;
   service_url: string;
   status: string;
 };
@@ -53,21 +53,21 @@ async function checkService(url: string) {
   }
 }
 
-const rawAgreements = await client.readContract({
+const rawServices = await client.readContract({
   address: contractAddress as `0x${string}`,
-  functionName: "get_agreements",
+  functionName: "get_services",
   args: [],
   jsonSafeReturn: true,
 });
-const agreements = JSON.parse(String(rawAgreements)) as Agreement[];
+const services = JSON.parse(String(rawServices)) as Service[];
 const now = Date.now();
 const periodStart = new Date(now - 24 * 60 * 60 * 1000).toISOString();
 const periodEnd = new Date(now).toISOString();
 
-for (const agreement of agreements.filter((item) => item.status === "active")) {
+for (const service of services.filter((item) => item.status === "active")) {
   let passed = 0;
   for (let index = 0; index < checks; index += 1) {
-    if (await checkService(agreement.service_url)) passed += 1;
+    if (await checkService(service.service_url)) passed += 1;
     if (index < checks - 1) {
       await new Promise((resolve) => setTimeout(resolve, waitMs));
     }
@@ -76,7 +76,7 @@ for (const agreement of agreements.filter((item) => item.status === "active")) {
   const failedChecks = totalChecks - passed;
   const uptimeBps = Math.floor((passed * 10000) / totalChecks);
   const unsigned = {
-    agreement_id: agreement.agreement_id,
+    service_id: service.service_id,
     period_start: periodStart,
     period_end: periodEnd,
     uptime_bps: uptimeBps,
@@ -87,13 +87,13 @@ for (const agreement of agreements.filter((item) => item.status === "active")) {
     .update(JSON.stringify(unsigned))
     .digest("hex");
   const snapshotId = `snapshot_${createHash("sha256")
-    .update(`${agreement.agreement_id}:${periodStart}`)
+    .update(`${service.service_id}:${periodStart}`)
     .digest("hex")
     .slice(0, 48)}`;
   const evidenceUrl = publicEvidenceBase
     ? `${publicEvidenceBase}/${snapshotId}.json`
-    : `${serviceUrl.replace(/\/health$/, "")}/evidence?agreement_id=${encodeURIComponent(
-        agreement.agreement_id,
+    : `${serviceUrl.replace(/\/health$/, "")}/evidence?service_id=${encodeURIComponent(
+        service.service_id,
       )}&period_start=${encodeURIComponent(periodStart)}`;
   const evidencePayload = { ...unsigned, signature };
   if (publicEvidenceBase) {
@@ -107,7 +107,7 @@ for (const agreement of agreements.filter((item) => item.status === "active")) {
     address: contractAddress as `0x${string}`,
     functionName: "publish_snapshot",
     args: [
-      agreement.agreement_id,
+      service.service_id,
       periodStart,
       periodEnd,
       BigInt(uptimeBps),
@@ -126,9 +126,9 @@ for (const agreement of agreements.filter((item) => item.status === "active")) {
   });
   await pool.query(
     `insert into monitor_snapshots
-      (snapshot_id, agreement_id, period_start, period_end, uptime_bps,
+      (snapshot_id, service_id, agreement_id, period_start, period_end, uptime_bps,
        total_checks, failed_checks, evidence_url, signature)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     values ($1, $2, $2, $3, $4, $5, $6, $7, $8, $9)
      on conflict (snapshot_id) do update set
        uptime_bps = excluded.uptime_bps,
        total_checks = excluded.total_checks,
@@ -136,7 +136,7 @@ for (const agreement of agreements.filter((item) => item.status === "active")) {
        signature = excluded.signature`,
     [
       snapshotId,
-      agreement.agreement_id,
+      service.service_id,
       periodStart,
       periodEnd,
       uptimeBps,
@@ -147,7 +147,7 @@ for (const agreement of agreements.filter((item) => item.status === "active")) {
     ],
   );
   console.log(
-    `${agreement.service_url}: ${uptimeBps / 100}% uptime, ${txHash}, ${snapshotId}`,
+    `${service.service_url}: ${uptimeBps / 100}% uptime, ${txHash}, ${snapshotId}`,
   );
 }
 

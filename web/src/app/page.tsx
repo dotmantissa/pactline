@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   Activity,
+  ArrowRight,
   ArrowUpRight,
   Check,
   CircleAlert,
@@ -21,8 +22,11 @@ import {
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallet } from "@/components/wallet-provider";
 import { formatGen, formatUptime } from "@/lib/constants";
-import { readAgreements, readClaims, readSnapshots, writeContract } from "@/lib/genlayer";
-import type { Agreement, Claim, Snapshot } from "@/lib/types";
+import { readClaims, readServices, readSnapshots, readSubscriptions, writeContract } from "@/lib/genlayer";
+import type { Claim, Service, Snapshot, Subscription } from "@/lib/types";
+
+type Role = "user" | "provider";
+type View = "landing" | "how" | "app";
 
 type ServiceStatus = {
   outage: boolean;
@@ -32,25 +36,95 @@ type ServiceStatus = {
   last_checked_at: string | null;
 };
 
-const initialForm = {
+const initialServiceForm = {
   service_name: "Pactline Demo API",
   service_url: "",
-  terms: "If uptime falls below the threshold, return the agreed share of the deposit.",
+  terms: "If uptime falls below the threshold, return the agreed share of the subscription price.",
   threshold: "99.90",
   window_days: "1",
   compensation_type: "refund",
   compensation: "20",
-  deposit: "0.01",
+  price: "0.01",
+  collateral: "0.10",
 };
 
 function shortAddress(value: string | null) {
   return value ? `${value.slice(0, 6)}...${value.slice(-4)}` : "";
 }
 
-function dateLabel(value: string | number) {
-  return new Date(typeof value === "number" ? value * 1000 : value).toLocaleDateString(
-    undefined,
-    { month: "short", day: "numeric" },
+function LandingPage({ onStart, onHow, services }: { onStart: () => void; onHow: () => void; services: Service[] }) {
+  const activeServices = services.filter((service) => service.status === "active").length;
+  const postedCoverage = services.reduce((sum, service) => sum + service.collateral_wei, 0);
+  return (
+    <section className="landing-page" aria-labelledby="landing-title">
+      <div className="landing-hero">
+        <div className="landing-hero-copy">
+          <p className="eyebrow">SLA coverage for software people rely on</p>
+          <h1 id="landing-title">When a service misses its promise, the promise pays.</h1>
+          <p className="hero-copy">Pactline lets providers publish a service with clear uptime terms and collateral. Customers subscribe with confidence, backed by evidence that can settle a claim without a support ticket marathon.</p>
+          <div className="landing-actions">
+            <button className="primary-button light" onClick={onStart}><ShieldCheck size={16} /> Join Pactline</button>
+            <button className="ghost-button" onClick={onHow}>See how it works <ArrowRight size={15} /></button>
+          </div>
+        </div>
+        <div className="landing-proof">
+          <div className="proof-label">Coverage directory</div>
+          <div className="proof-metrics">
+            <div><strong>{services.length}</strong><span>services listed</span></div>
+            <div><strong>{activeServices}</strong><span>open for signup</span></div>
+            <div><strong>{formatGen(postedCoverage)}</strong><span>coverage posted</span></div>
+          </div>
+          <div className="proof-line"><span className="proof-dot provider" /><span>Provider posts terms</span><Check size={15} /></div>
+          <div className="proof-line"><span className="proof-dot evidence" /><span>Monitor signs the evidence</span><Check size={15} /></div>
+          <div className="proof-line"><span className="proof-dot payout" /><span>Subscriber receives the result</span><Check size={15} /></div>
+          <div className="proof-note">{services.length ? "The directory is live on GenLayer Studio." : "The first provider listing will open the directory."}</div>
+        </div>
+      </div>
+
+      <div className="landing-audience">
+        <div className="landing-audience-intro">
+          <p className="section-kicker">Two sides, one fair rule</p>
+          <h2>Built for the person selling uptime and the person paying for it.</h2>
+        </div>
+        <div className="audience-row">
+          <div><span className="audience-number">01</span><h3>For providers</h3></div>
+          <p>Turn reliability into a reason to buy. Set the terms yourself, fund the coverage pool, and let your customers see that the promise has money behind it.</p>
+        </div>
+        <div className="audience-row">
+          <div><span className="audience-number">02</span><h3>For subscribers</h3></div>
+          <p>Choose a listed service, pay the subscription price, and know what happens if the service falls below its published threshold.</p>
+        </div>
+      </div>
+
+      <div className="landing-footer-cta">
+        <div><p className="section-kicker">The short version</p><h2>Good software keeps its word. Pactline keeps the receipt.</h2></div>
+        <button className="primary-button" onClick={onStart}>Choose your role <ArrowUpRight size={15} /></button>
+      </div>
+    </section>
+  );
+}
+
+function RolePicker({ onClose, onContinue }: { onClose: () => void; onContinue: (role: Role) => void }) {
+  const [selected, setSelected] = useState<Role | null>(null);
+  return (
+    <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <motion.div className="role-modal" initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 18 }}>
+        <div className="modal-head"><div><p className="section-kicker">Before the email</p><h2>Which side of the promise are you on?</h2><p>We will shape your workspace around the job you came here to do.</p></div><button className="icon-button" onClick={onClose} aria-label="Close role selection" title="Close role selection"><X size={17} /></button></div>
+        <div className="role-options">
+          <button className={`role-option ${selected === "user" ? "selected" : ""}`} onClick={() => setSelected("user")} type="button">
+            <span className="role-option-icon"><ClipboardCheck size={20} /></span>
+            <span><strong>User</strong><small>Subscribe to services and claim when their uptime falls short.</small></span>
+            {selected === "user" && <Check size={17} />}
+          </button>
+          <button className={`role-option ${selected === "provider" ? "selected" : ""}`} onClick={() => setSelected("provider")} type="button">
+            <span className="role-option-icon"><ShieldCheck size={20} /></span>
+            <span><strong>Provider</strong><small>List a service, define its terms, and fund its coverage.</small></span>
+            {selected === "provider" && <Check size={17} />}
+          </button>
+        </div>
+        <div className="role-footer"><span>Email sign in with an embedded wallet. No wallet juggling.</span><button className="primary-button light" disabled={!selected} onClick={() => selected && onContinue(selected)}>Continue with email <ArrowRight size={15} /></button></div>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -59,127 +133,159 @@ function HowItWorks({ onStart }: { onStart: () => void }) {
     <section className="how-page" aria-labelledby="how-title">
       <div className="how-intro">
         <div>
-          <p className="eyebrow">A clearer way to ask for what you are owed</p>
+          <p className="eyebrow">A service promise with a funded backstop</p>
           <h1 id="how-title">A service promise should come with a receipt.</h1>
-          <p className="hero-copy">Pactline turns an SLA into a small, self contained process. You set the rule, the monitor keeps the record, and GenLayer helps make the call when the numbers get uncomfortable.</p>
+          <p className="hero-copy">Providers publish the terms and collateral. Customers subscribe to those terms. Pactline records the evidence and settles a valid claim from the provider’s coverage pool.</p>
         </div>
         <div className="how-summary">
           <span className="aside-kicker">The whole idea</span>
           <strong>Promise. Proof. Payout.</strong>
-          <p>No chasing support, no arguing over a screenshot, and no claim so small that it is not worth making.</p>
+          <p>The provider puts money behind the service before anyone asks the service to keep its word.</p>
         </div>
       </div>
 
       <div className="how-steps">
-        <article className="how-step">
-          <div className="step-topline"><span className="step-number">01</span><ShieldCheck size={19} /></div>
-          <h2>Register the promise</h2>
-          <p>Tell Pactline which service you pay for, where its health check lives, and what should happen when uptime falls short.</p>
-          <div className="step-detail"><Check size={14} /> Threshold, time window, and settlement share</div>
-        </article>
-        <article className="how-step">
-          <div className="step-topline"><span className="step-number">02</span><Activity size={19} /></div>
-          <h2>Let the monitor keep score</h2>
-          <p>The monitor checks the public health endpoint and publishes a signed snapshot. The evidence stays close to the agreement instead of disappearing into an inbox.</p>
-          <div className="step-detail"><FileCheck2 size={14} /> Signed uptime evidence with a source link</div>
-        </article>
-        <article className="how-step">
-          <div className="step-topline"><span className="step-number">03</span><CircleAlert size={19} /></div>
-          <h2>File the claim</h2>
-          <p>When the snapshot shows a breach, file a claim. GenLayer validators compare the evidence with the rule and record the decision in the contract.</p>
-          <div className="step-detail"><ArrowUpRight size={14} /> A decision that can be checked later</div>
-        </article>
-        <article className="how-step">
-          <div className="step-topline"><span className="step-number">04</span><ClipboardCheck size={19} /></div>
-          <h2>Collect the result</h2>
-          <p>A successful breach claim settles the agreed refund or records the service credit. The money does not need another meeting to find its way home.</p>
-          <div className="step-detail"><Check size={14} /> Automatic settlement from the deposit</div>
-        </article>
+        <article className="how-step"><div className="step-topline"><span className="step-number">01</span><ShieldCheck size={19} /></div><h2>Provider lists the service</h2><p>A provider registers a public health URL, writes the uptime terms, chooses the subscriber price, and deposits collateral.</p><div className="step-detail"><Check size={14} /> The provider defines the promise</div></article>
+        <article className="how-step"><div className="step-topline"><span className="step-number">02</span><ClipboardCheck size={19} /></div><h2>User subscribes</h2><p>A user picks a listed service and pays its published subscription price. The contract reserves enough provider collateral for the promised compensation.</p><div className="step-detail"><Check size={14} /> Coverage is reserved before the claim</div></article>
+        <article className="how-step"><div className="step-topline"><span className="step-number">03</span><Activity size={19} /></div><h2>Monitor keeps score</h2><p>The monitor checks the provider’s health endpoint and publishes a signed snapshot linked to the service. The evidence has a source and a period.</p><div className="step-detail"><FileCheck2 size={14} /> Signed uptime evidence</div></article>
+        <article className="how-step"><div className="step-topline"><span className="step-number">04</span><CircleAlert size={19} /></div><h2>Claim settles</h2><p>After the measurement window ends, the subscriber files a claim. GenLayer checks the evidence against the provider’s terms and sends the refund from collateral.</p><div className="step-detail"><Check size={14} /> Provider funded compensation</div></article>
       </div>
 
-      <section className="how-benefits">
-        <div>
-          <p className="section-kicker">Why use Pactline</p>
-          <h2>It makes the small claims worth making.</h2>
-        </div>
-        <div className="benefit-list">
-          <div className="benefit-item"><ShieldCheck size={18} /><div><strong>Evidence with context</strong><p>The source URL, signed snapshot, and validator decision travel together.</p></div></div>
-          <div className="benefit-item"><CloudOff size={18} /><div><strong>Less awkward chasing</strong><p>The service can miss its promise without you writing the fifth polite follow up.</p></div></div>
-          <div className="benefit-item"><ClipboardCheck size={18} /><div><strong>A rule you chose</strong><p>You decide the threshold and compensation before the outage has a chance to become an argument.</p></div></div>
-        </div>
-      </section>
+      <section className="how-benefits"><div><p className="section-kicker">Why use Pactline</p><h2>It makes reliability a product feature, not a nice sentence in a sales deck.</h2></div><div className="benefit-list"><div className="benefit-item"><ShieldCheck size={18} /><div><strong>Providers earn trust</strong><p>Clear terms and visible collateral make a reliability promise easier to believe.</p></div></div><div className="benefit-item"><FileCheck2 size={18} /><div><strong>Users get a fair path</strong><p>The claim starts with a registered service and ends with evidence that anyone can inspect.</p></div></div><div className="benefit-item"><ClipboardCheck size={18} /><div><strong>Small claims can finish</strong><p>There is no need to negotiate the meaning of uptime after the fact.</p></div></div></div></section>
+      <section className="how-start"><div><p className="section-kicker">Ready when you are</p><h2>Choose a side and get to work.</h2><p>Providers can list a service. Users can browse coverage.</p></div><button className="primary-button light" onClick={onStart}>Choose your role <ArrowRight size={15} /></button></section>
+    </section>
+  );
+}
 
-      <section className="how-start">
-        <div>
-          <p className="section-kicker">Ready when you are</p>
-          <h2>Put one service on the line.</h2>
-          <p>It takes one agreement and a deposit to start keeping a proper receipt.</p>
-        </div>
-        <button className="primary-button light" onClick={onStart}><Plus size={16} /> Add a service</button>
-      </section>
+function ServiceCard({ service, subscribed, busy, onSubscribe, isProvider }: { service: Service; subscribed: boolean; busy: boolean; onSubscribe: () => void; isProvider: boolean }) {
+  return (
+    <article className="service-card">
+      <div className="service-card-top"><span className={`status ${service.status}`}>{service.status}</span><span className="mono service-id">Service {service.service_id}</span></div>
+      <h3>{service.service_name}</h3>
+      <p className="service-terms">{service.terms}</p>
+      <div className="service-facts"><div><span>Uptime promise</span><strong>{formatUptime(service.threshold_bps)}</strong></div><div><span>Compensation</span><strong>{service.compensation_bps / 100}% {service.compensation_type}</strong></div><div><span>Subscription</span><strong>{formatGen(service.subscription_price_wei)}</strong></div></div>
+      <div className="service-card-footer"><span><span className="service-provider-label">Provider</span>{shortAddress(service.provider)}</span>{isProvider ? <span className="service-note">Your listing</span> : subscribed ? <span className="service-note">Subscribed</span> : <button className="primary-button light compact" disabled={busy} onClick={onSubscribe}>{busy ? <RefreshCw size={13} className="spin" /> : <Plus size={13} />} Subscribe</button>}</div>
+    </article>
+  );
+}
+
+function ProviderWorkspace({ address, services, busy, onRegister, onCollateral, onPause }: { address: string; services: Service[]; busy: string; onRegister: () => void; onCollateral: (service: Service) => void; onPause: (service: Service) => void }) {
+  const ownServices = services.filter((service) => service.provider.toLowerCase() === address.toLowerCase());
+  return (
+    <section className="workspace" aria-labelledby="workspace-title">
+      <div className="workspace-intro"><div><p className="eyebrow">Provider workspace</p><h1 id="workspace-title">Make the promise worth believing.</h1><p className="hero-copy">List the service, set the terms, and put collateral behind the uptime your customers are buying.</p></div><button className="primary-button light" onClick={onRegister}><Plus size={16} /> List a service</button></div>
+      <div className="workspace-stats"><div><span>Services listed</span><strong>{ownServices.length}</strong></div><div><span>Coverage posted</span><strong>{formatGen(ownServices.reduce((sum, service) => sum + service.collateral_wei, 0))}</strong></div><div><span>Subscribers</span><strong>{ownServices.reduce((sum, service) => sum + service.subscriber_count, 0)}</strong></div></div>
+      <div className="section-head"><div><p className="section-kicker">Your listings</p><h2>Services with a promise behind them</h2><span>Every listing is monitored from its registered health URL.</span></div></div>
+      {ownServices.length ? <div className="service-directory">{ownServices.map((service) => <article className="provider-service" key={service.service_id}><div><span className={`status ${service.status}`}>{service.status}</span><h3>{service.service_name}</h3><p>{service.service_url}</p></div><div className="provider-service-facts"><div><span>Collateral</span><strong>{formatGen(service.collateral_wei)}</strong></div><div><span>Reserved</span><strong>{formatGen(service.reserved_wei)}</strong></div><div><span>Revenue</span><strong>{formatGen(service.provider_revenue_wei)}</strong></div></div><div className="provider-service-actions"><button className="ghost-button compact" onClick={() => onCollateral(service)}><Plus size={13} /> Add collateral</button><button className="icon-button compact-icon" disabled={busy === `pause-${service.service_id}`} onClick={() => onPause(service)} aria-label="Pause or resume service" title="Pause or resume service"><CloudOff size={14} /></button></div></article>)}</div> : <div className="empty-state provider-empty"><ShieldCheck size={27} /><h3>Nothing listed yet</h3><p>Your first service listing sets the terms customers will see and the collateral they can trust.</p><button className="primary-button light" onClick={onRegister}><Plus size={16} /> List your first service</button></div>}
+    </section>
+  );
+}
+
+function UserWorkspace({ services, subscriptions, claims, snapshots, address, busy, onSubscribe, onClaim, onRefresh }: { services: Service[]; subscriptions: Subscription[]; claims: Claim[]; snapshots: Snapshot[]; address: string; busy: string; onSubscribe: (service: Service) => void; onClaim: (subscription: Subscription, snapshot: Snapshot) => void; onRefresh: () => void }) {
+  const [now, setNow] = useState(0);
+  const mySubscriptions = subscriptions.filter((item) => item.customer.toLowerCase() === address.toLowerCase());
+  const myClaims = claims.filter((item) => item.customer.toLowerCase() === address.toLowerCase());
+  const subscribedIds = new Set(mySubscriptions.map((item) => item.service_id));
+  useEffect(() => {
+    // Keep claim availability aligned with the provider published window.
+    // The contract remains the final authority when the transaction is sent.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNow(Date.now());
+    const timer = window.setInterval(() => setNow(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return (
+    <section className="workspace" aria-labelledby="workspace-title">
+      <div className="workspace-intro"><div><p className="eyebrow">User workspace</p><h1 id="workspace-title">Subscribe with something stronger than hope.</h1><p className="hero-copy">Browse provider listed services, see the terms before you pay, and keep a direct route to compensation if uptime falls short.</p></div><button className="icon-button" onClick={onRefresh} aria-label="Refresh marketplace" title="Refresh marketplace"><RefreshCw size={16} /></button></div>
+      <div className="workspace-stats"><div><span>Listed services</span><strong>{services.length}</strong></div><div><span>Your subscriptions</span><strong>{mySubscriptions.length}</strong></div><div><span>Compensation received</span><strong>{formatGen(myClaims.reduce((sum, claim) => sum + claim.settlement_wei, 0))}</strong></div></div>
+      <div className="section-head"><div><p className="section-kicker">Service directory</p><h2>Choose your coverage</h2><span>Provider terms are visible before you subscribe.</span></div></div>
+      {services.length ? <div className="service-directory">{services.map((service) => <ServiceCard key={service.service_id} service={service} subscribed={subscribedIds.has(service.service_id)} busy={busy === `subscribe-${service.service_id}`} onSubscribe={() => onSubscribe(service)} isProvider={false} />)}</div> : <div className="empty-state"><ClipboardCheck size={27} /><h3>No services have opened their doors yet</h3><p>Once a provider lists a service, its terms and coverage will appear here.</p></div>}
+      <div className="activity user-claims"><div className="section-head"><div><p className="section-kicker">Your coverage</p><h2>Subscriptions and claims</h2><span>Evidence and settlement history for your account.</span></div></div><div className="panel activity-list">{mySubscriptions.length ? mySubscriptions.map((subscription) => { const service = services.find((item) => item.service_id === subscription.service_id); const snapshot = [...snapshots].reverse().find((item) => item.service_id === subscription.service_id); const existingClaim = claims.find((claim) => claim.subscription_id === subscription.subscription_id && claim.snapshot_id === snapshot?.snapshot_id); const windowClosed = snapshot ? now > 0 && Date.parse(snapshot.period_end) <= now : false; return <div className="subscription-row" key={subscription.subscription_id}><div><strong>{service?.service_name ?? `Service ${subscription.service_id}`}</strong><span>Subscription {subscription.subscription_id} | {formatGen(subscription.subscription_price_wei)}</span></div><div><span className="row-label">Maximum claim</span><strong>{formatGen(subscription.max_payout_wei)}</strong></div><div>{existingClaim ? <span className={`status ${existingClaim.status}`}>{existingClaim.status}</span> : snapshot && windowClosed ? <button className="ghost-button compact" disabled={busy === `claim-${subscription.subscription_id}`} onClick={() => onClaim(subscription, snapshot)}>{busy === `claim-${subscription.subscription_id}` ? <RefreshCw size={13} className="spin" /> : <FileCheck2 size={13} />} File claim</button> : snapshot ? <span className="service-note">Window closes {new Date(snapshot.period_end).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</span> : <span className="service-note">Waiting for evidence</span>}</div></div>; }) : <div className="activity-item"><span className="activity-icon"><Activity size={16} /></span><p><strong>Nothing covered yet.</strong><span>Subscribe to a listed service and its evidence will show up here.</span></p></div>}</div></div>
     </section>
   );
 }
 
 export default function Home() {
-  const { ready, authenticated } = usePrivy();
+  const { ready, authenticated, user } = usePrivy();
   const { address, provider, connect, disconnect, wrongNetwork } = useWallet();
-  const [agreements, setAgreements] = useState<Agreement[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [snapshots, setSnapshots] = useState<Snapshot[]>([]);
   const [claims, setClaims] = useState<Claim[]>([]);
-  const [service, setService] = useState<ServiceStatus | null>(null);
+  const [demoService, setDemoService] = useState<ServiceStatus | null>(null);
   const [showRegister, setShowRegister] = useState(false);
-  const [form, setForm] = useState(initialForm);
+  const [showRolePicker, setShowRolePicker] = useState(false);
+  const [serviceForm, setServiceForm] = useState(initialServiceForm);
   const [busy, setBusy] = useState("");
   const [toast, setToast] = useState("");
-  const [view, setView] = useState<"desk" | "how">("desk");
+  const [role, setRole] = useState<Role | null>(null);
+  const [view, setView] = useState<View>("landing");
 
   const refresh = useCallback(async () => {
-    const [nextAgreements, nextSnapshots, nextClaims, serviceResponse] = await Promise.all([
-      readAgreements(),
+    const [nextServices, nextSubscriptions, nextSnapshots, nextClaims, serviceResponse] = await Promise.all([
+      readServices(),
+      readSubscriptions(),
       readSnapshots(),
       readClaims(),
       fetch("/api/service/status").then((response) => response.ok ? response.json() : null),
     ]);
-    setAgreements(nextAgreements);
+    setServices(nextServices);
+    setSubscriptions(nextSubscriptions);
     setSnapshots(nextSnapshots);
     setClaims(nextClaims);
-    setService(serviceResponse as ServiceStatus | null);
+    setDemoService(serviceResponse as ServiceStatus | null);
   }, []);
 
   useEffect(() => {
-    // Load the external service and contract state when the workbench opens.
+    // Load public listings and evidence as soon as the app opens.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     void refresh();
     const timer = window.setInterval(() => void refresh(), 15000);
     return () => window.clearInterval(timer);
   }, [refresh]);
 
-  const customerAgreements = useMemo(
-    () => (address ? agreements.filter((item) => item.customer.toLowerCase() === address.toLowerCase()) : []),
-    [address, agreements],
-  );
-  const recentClaims = useMemo(
-    () => (address ? claims.filter((item) => item.customer.toLowerCase() === address.toLowerCase()) : claims),
-    [address, claims],
-  );
-  const lastSnapshot = snapshots.at(-1);
-  const stats = [
-    { label: "Agreements", value: customerAgreements.length },
-    { label: "Evidence packets", value: snapshots.length },
-    { label: "Claims resolved", value: recentClaims.length },
-    { label: "Demo uptime", value: service ? formatUptime(service.uptime_bps) : "100.00%" },
-  ];
+  useEffect(() => {
+    if (!authenticated || !address) return;
+    const key = `pactline-role:${address.toLowerCase()}`;
+    const stored = localStorage.getItem(key) as Role | null;
+    const pending = localStorage.getItem("pactline-pending-role") as Role | null;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (stored === "user" || stored === "provider") setRole(stored);
+    else if (pending === "user" || pending === "provider") {
+      localStorage.setItem(key, pending);
+      localStorage.removeItem("pactline-pending-role");
+      setRole(pending);
+    } else setShowRolePicker(true);
+    setView("app");
+  }, [address, authenticated]);
 
-  async function controlService(outage: boolean) {
-    setBusy("service");
+  const email = user?.linkedAccounts?.find((account) => account.type === "email")?.address ?? "";
+  const currentRole = role;
+  function startAuth() {
+    if (authenticated && role) {
+      setView("app");
+      return;
+    }
+    setShowRolePicker(true);
+  }
+
+  function chooseRole(nextRole: Role) {
+    if (authenticated && address) {
+      localStorage.setItem(`pactline-role:${address.toLowerCase()}`, nextRole);
+      localStorage.removeItem("pactline-pending-role");
+    } else {
+      localStorage.setItem("pactline-pending-role", nextRole);
+    }
+    setRole(nextRole);
+    setShowRolePicker(false);
+    if (!authenticated) void connect();
+  }
+
+  async function controlDemo(outage: boolean) {
+    setBusy("demo");
     try {
-      const response = await fetch("/api/service/control", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ outage }),
-      });
-      if (!response.ok) throw new Error("The service control did not respond.");
+      const response = await fetch("/api/service/control", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ outage }) });
+      if (!response.ok) throw new Error("The demo service control did not respond.");
       setToast(outage ? "The demo service is now having a difficult day." : "The demo service is back on its feet.");
       await refresh();
     } catch (error) {
@@ -189,53 +295,51 @@ export default function Home() {
     }
   }
 
-  async function submitRegistration(event: React.FormEvent<HTMLFormElement>) {
+  async function registerService(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!address || !provider) {
-      connect();
+      startAuth();
       return;
     }
     setBusy("register");
     try {
-      const thresholdBps = Math.round(Number(form.threshold) * 100);
-      const compensationBps = Math.round(Number(form.compensation) * 100);
-      const depositWei = BigInt(Math.round(Number(form.deposit) * 1_000_000_000_000_000_000));
-      const result = await writeContract(
-        address,
-        provider,
-        "register_sla",
-        [
-          form.service_name,
-          form.service_url || `${window.location.origin}/api/service/health`,
-          form.terms,
-          thresholdBps,
-          Number(form.window_days),
-          form.compensation_type,
-          compensationBps,
-        ],
-        depositWei,
-      );
+      const priceWei = BigInt(Math.round(Number(serviceForm.price) * 1_000_000_000_000_000_000));
+      const collateralWei = BigInt(Math.round(Number(serviceForm.collateral) * 1_000_000_000_000_000_000));
+      const result = await writeContract(address, provider, "register_service", [serviceForm.service_name, serviceForm.service_url || `${window.location.origin}/api/service/health`, serviceForm.terms, Math.round(Number(serviceForm.threshold) * 100), Number(serviceForm.window_days), serviceForm.compensation_type, Math.round(Number(serviceForm.compensation) * 100), priceWei], collateralWei);
       setShowRegister(false);
-      setForm(initialForm);
-      setToast(result.status === "finalized" ? "Your agreement is on the line now." : "The agreement is still being decided.");
+      setServiceForm(initialServiceForm);
+      setToast(result.status === "finalized" ? "Your service is now listed with coverage behind it." : "Your service listing is still being decided.");
       await refresh();
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "The agreement could not be registered.");
+      setToast(error instanceof Error ? error.message : "The service could not be listed.");
     } finally {
       setBusy("");
     }
   }
 
-  async function fileClaim(agreement: Agreement) {
-    const snapshot = [...snapshots].reverse().find((item) => item.agreement_id === agreement.agreement_id);
-    if (!address || !provider || !snapshot) {
-      setToast("There is no signed evidence packet for this agreement yet.");
+  async function subscribe(service: Service) {
+    if (!address || !provider) {
+      startAuth();
       return;
     }
-    setBusy(`claim-${agreement.agreement_id}`);
+    setBusy(`subscribe-${service.service_id}`);
     try {
-      const result = await writeContract(address, provider, "file_claim", [agreement.agreement_id, snapshot.snapshot_id]);
-      setToast(result.status === "finalized" ? "The validators have delivered a decision." : "Your claim is still in the queue.");
+      const result = await writeContract(address, provider, "subscribe_service", [service.service_id], BigInt(service.subscription_price_wei));
+      setToast(result.status === "finalized" ? `You are covered by ${service.service_name}.` : "Your subscription is still being decided.");
+      await refresh();
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "The subscription could not be completed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function fileClaim(subscription: Subscription, snapshot: Snapshot) {
+    if (!address || !provider) return;
+    setBusy(`claim-${subscription.subscription_id}`);
+    try {
+      const result = await writeContract(address, provider, "file_claim", [subscription.subscription_id, snapshot.snapshot_id]);
+      setToast(result.status === "finalized" ? "The provider funded your settlement." : "Your claim is still being decided.");
       await refresh();
     } catch (error) {
       setToast(error instanceof Error ? error.message : "The claim could not be filed.");
@@ -244,186 +348,64 @@ export default function Home() {
     }
   }
 
-  async function pauseAgreement(agreement: Agreement) {
+  async function addCollateral(service: Service) {
     if (!address || !provider) return;
-    setBusy(`pause-${agreement.agreement_id}`);
+    const amount = window.prompt(`How much GEN should be added to ${service.service_name}'s coverage pool?`, "0.10");
+    if (!amount || Number(amount) <= 0) return;
+    setBusy(`collateral-${service.service_id}`);
     try {
-      await writeContract(address, provider, "pause_sla", [agreement.agreement_id]);
+      await writeContract(address, provider, "add_service_collateral", [service.service_id], BigInt(Math.round(Number(amount) * 1_000_000_000_000_000_000)));
+      setToast("Coverage collateral added.");
       await refresh();
-      setToast(agreement.status === "active" ? "Monitoring paused." : "Monitoring resumed.");
     } catch (error) {
-      setToast(error instanceof Error ? error.message : "Could not update the agreement.");
+      setToast(error instanceof Error ? error.message : "Collateral could not be added.");
     } finally {
       setBusy("");
     }
   }
 
-  const chartBars = Array.from({ length: 24 }, (_, index) =>
-    service?.outage && index > 17 ? { height: 22 + (index % 3) * 4, down: true } : { height: 48 + (index * 17) % 43, down: false },
-  );
+  async function pauseService(service: Service) {
+    if (!address || !provider) return;
+    setBusy(`pause-${service.service_id}`);
+    try {
+      await writeContract(address, provider, "pause_service", [service.service_id]);
+      setToast(service.status === "active" ? "New subscriptions are paused." : "The service is accepting subscriptions again.");
+      await refresh();
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "The service status could not be changed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  const chartBars = Array.from({ length: 24 }, (_, index) => demoService?.outage && index > 17 ? { height: 22 + (index % 3) * 4, down: true } : { height: 48 + (index * 17) % 43, down: false });
 
   return (
     <main className="app-shell">
       <header className="topbar">
-        <Link className="brand" href="/">
-          <span className="brand-mark"><Image src="/icon.svg" alt="" width={26} height={26} priority /></span>
-          <span className="brand-name">Pactline</span>
-          <span className="brand-note">Claims desk</span>
-        </Link>
+        <Link className="brand" href="/" onClick={() => setView(authenticated ? "app" : "landing")}><span className="brand-mark"><Image src="/icon.svg" alt="" width={26} height={26} priority /></span><span className="brand-name">Pactline</span><span className="brand-note">SLA coverage</span></Link>
         <nav className="top-nav" aria-label="Pactline views" role="tablist">
-          <button className={`top-tab ${view === "desk" ? "selected" : ""}`} type="button" role="tab" aria-selected={view === "desk"} onClick={() => setView("desk")}>Claims desk</button>
+          <button className={`top-tab ${(authenticated ? view === "app" : view === "landing") ? "selected" : ""}`} type="button" role="tab" aria-selected={authenticated ? view === "app" : view === "landing"} onClick={() => setView(authenticated ? "app" : "landing")}>{authenticated ? "Workspace" : "Home"}</button>
           <button className={`top-tab ${view === "how" ? "selected" : ""}`} type="button" role="tab" aria-selected={view === "how"} onClick={() => setView("how")}>How it works</button>
         </nav>
-        <div className="top-actions">
-          <span className="network">Studio network</span>
-          {authenticated ? (
-            <>
-              <span className="mono" style={{ fontSize: 11 }}>{shortAddress(address)}</span>
-              <button className="icon-button" onClick={() => void disconnect()} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button>
-            </>
-          ) : (
-            <button className="primary-button" onClick={connect}><ShieldCheck size={16} /> Sign in with email</button>
-          )}
-        </div>
+        <div className="top-actions"><span className="network">Studio network</span>{authenticated ? <><span className="mono top-email">{email || shortAddress(address)}</span><button className="icon-button" onClick={() => void disconnect()} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button></> : <button className="primary-button" onClick={startAuth}><ShieldCheck size={16} /> Sign in with email</button>}</div>
       </header>
 
       <section className="page">
         <AnimatePresence>
-          {!authenticated && ready && (
-            <motion.div className="signin" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
-              <p><strong>Keep the receipt.</strong> Sign in with email to register a service and put a deposit behind its promise.</p>
-              <button className="ghost-button" onClick={connect}>Get started <ArrowUpRight size={15} /></button>
-            </motion.div>
-          )}
+          {!authenticated && ready && view === "landing" && <motion.div className="signin" initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}><p><strong>Provider or user?</strong> Choose your role before the email screen and Pactline will set up the right workspace.</p><button className="ghost-button" onClick={startAuth}>Choose a role <ArrowUpRight size={15} /></button></motion.div>}
         </AnimatePresence>
 
-        {view === "desk" ? (
-          <>
-        <section className="hero">
-          <div>
-            <p className="eyebrow">Your service promise, with a paper trail</p>
-            <h1>Keep the receipt when uptime goes missing.</h1>
-            <p className="hero-copy">Pactline watches the service you pay for, keeps signed evidence, and gives a small claim a fair chance to finish itself.</p>
-          </div>
-          <div className="hero-aside">
-            <span className="aside-kicker">The Pactline rule</span>
-            <strong>Show the evidence. Make the call. Move on.</strong>
-            <span>Every decision keeps the source URL, the signed snapshot, and the validator result beside the money.</span>
-          </div>
-        </section>
+        {view === "how" ? <HowItWorks onStart={startAuth} /> : authenticated && currentRole === "provider" && address ? <ProviderWorkspace address={address} services={services} busy={busy} onRegister={() => setShowRegister(true)} onCollateral={(service) => void addCollateral(service)} onPause={(service) => void pauseService(service)} /> : authenticated && currentRole === "user" && address ? <UserWorkspace address={address} services={services} subscriptions={subscriptions} claims={claims} snapshots={snapshots} busy={busy} onSubscribe={(service) => void subscribe(service)} onClaim={(subscription, snapshot) => void fileClaim(subscription, snapshot)} onRefresh={() => void refresh()} /> : <LandingPage services={services} onStart={startAuth} onHow={() => setView("how")} />}
 
-        <section className="stats">
-          {stats.map((stat, index) => <div className={`stat stat-${index + 1}`} key={stat.label}><span className="stat-label">{stat.label}</span><strong className="stat-value">{stat.value}</strong></div>)}
-        </section>
-
-        <section className="content-grid">
-          <div>
-            <div className="section-head">
-              <div><p className="section-kicker">Your side of the line</p><h2>Service agreements</h2><span>{authenticated ? "The promises you are keeping an eye on" : "Sign in to see your agreements"}</span></div>
-              <button className="primary-button light" onClick={() => authenticated ? setShowRegister(true) : connect()}><Plus size={16} /> Add a service</button>
-            </div>
-            <div className="panel">
-              {customerAgreements.length ? (
-                <div className="agreement-list">
-                  {customerAgreements.map((agreement) => {
-                    const claim = recentClaims.find((item) => item.agreement_id === agreement.agreement_id);
-                    const hasSnapshot = snapshots.some((item) => item.agreement_id === agreement.agreement_id);
-                    return (
-                      <motion.div className="agreement-row" key={agreement.agreement_id} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                        <div>
-                          <div className="agreement-name">{agreement.service_name}</div>
-                          <div className="agreement-url">{agreement.service_url}</div>
-                        </div>
-                        <div><span className="row-label">Promise</span><span className="row-value">{formatUptime(agreement.threshold_bps)}</span></div>
-                        <div><span className="row-label">Deposit</span><span className="row-value">{formatGen(agreement.deposit_wei)}</span></div>
-                        <div>
-                          <span className={`status ${claim?.status ?? agreement.status}`}>{claim?.status ?? agreement.status}</span>
-                          {hasSnapshot && !claim && agreement.status !== "paused" && (
-                            <button className="ghost-button" style={{ marginTop: 8, minHeight: 32, fontSize: 11 }} disabled={busy === `claim-${agreement.agreement_id}`} onClick={() => void fileClaim(agreement)}>
-                              {busy === `claim-${agreement.agreement_id}` ? <RefreshCw size={13} className="spin" /> : <FileCheck2 size={13} />} File claim
-                            </button>
-                          )}
-                          {!claim && <button className="icon-button" style={{ marginTop: 8, height: 31, width: 31 }} disabled={busy === `pause-${agreement.agreement_id}`} onClick={() => void pauseAgreement(agreement)} aria-label="Pause or resume agreement" title="Pause or resume agreement"><CloudOff size={14} /></button>}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="empty-state">
-                  <ClipboardCheck size={27} />
-                  <h3>No promises on the line yet</h3>
-                  <p>Register the service you pay for. We will watch the evidence and do the awkward asking when uptime falls short.</p>
-                  <button className="primary-button light" onClick={() => authenticated ? setShowRegister(true) : connect()}><Plus size={16} /> Put one on the line</button>
-                </div>
-              )}
-            </div>
-
-            <div className="activity">
-              <div className="section-head"><div><p className="section-kicker">A short memory</p><h2>Decision log</h2><span>What Pactline has recorded lately</span></div><button className="icon-button" onClick={() => void refresh()} aria-label="Refresh data" title="Refresh data"><RefreshCw size={16} /></button></div>
-              <div className="panel activity-list">
-                {recentClaims.length ? recentClaims.slice(-4).reverse().map((claim) => (
-                  <div className="activity-item" key={claim.claim_id}>
-                    <span className="activity-icon">{claim.status === "breached" ? <CircleAlert size={16} /> : <Check size={16} />}</span>
-                    <p><strong>Claim {claim.claim_id}</strong> was {claim.status === "breached" ? "approved" : "cleared"} at {formatUptime(claim.uptime_bps)}.<span>{dateLabel(claim.resolved_at)} · {claim.settlement_type === "refund" ? formatGen(claim.settlement_wei) : "credit recorded"}</span></p>
-                  </div>
-                )) : <div className="activity-item"><span className="activity-icon"><Activity size={16} /></span><p><strong>Nothing dramatic yet.</strong><span>Signed snapshots will appear here after the monitor runs.</span></p></div>}
-              </div>
-            </div>
-          </div>
-
-          <aside>
-            <div className="section-head"><div><p className="section-kicker">Live evidence</p><h2>Monitor room</h2><span>The demo service is intentionally touchy</span></div></div>
-            <div className="panel monitor-panel">
-              <div className="monitor-status">
-                <span className={`service-pulse ${service?.outage ? "down" : ""}`} />
-                <div><strong>{service?.outage ? "Service is down" : "Service is answering"}</strong><span>{service?.last_checked_at ? `Last checked ${dateLabel(service.last_checked_at)}` : "Waiting for its first check"}</span></div>
-              </div>
-              <div className="monitor-chart" aria-label="Recent service checks">
-                {chartBars.map((bar, index) => <span className={`chart-bar ${bar.down ? "down" : ""}`} style={{ height: `${bar.height}%` }} key={index} />)}
-              </div>
-              <div className="monitor-meta">
-                <div><strong>{service ? formatUptime(service.uptime_bps) : "100.00%"}</strong><span>Rolling uptime</span></div>
-                <div><strong>{service?.failed_checks ?? 0}</strong><span>Failed checks</span></div>
-              </div>
-              <div className="monitor-actions">
-                <button className="ghost-button" disabled={busy === "service"} onClick={() => void controlService(!service?.outage)}>{service?.outage ? <Check size={14} /> : <CloudOff size={14} />}{service?.outage ? "Bring it back" : "Cause an outage"}</button>
-                <button className="ghost-button" onClick={() => void refresh()}><RefreshCw size={14} /> Check again</button>
-              </div>
-              {lastSnapshot && <div className="detail-strip"><FileCheck2 size={15} /><span>Latest signed snapshot</span><a href={lastSnapshot.evidence_url} target="_blank" rel="noreferrer">View evidence <ArrowUpRight size={12} /></a></div>}
-            </div>
-            {wrongNetwork && <p className="wrong-network">Your embedded wallet could not switch to GenLayer Studio.</p>}
-          </aside>
-        </section>
-          </>
-        ) : (
-          <HowItWorks onStart={() => { setView("desk"); setShowRegister(true); }} />
-        )}
+        {wrongNetwork && <p className="wrong-network">Your embedded wallet could not switch to GenLayer Studio.</p>}
+        {authenticated && currentRole === "provider" && demoService && <div className="provider-demo-strip"><span className={`service-pulse ${demoService.outage ? "down" : ""}`} /><span>Demo monitor {demoService.outage ? "is down" : "is answering"} at {formatUptime(demoService.uptime_bps)}.</span><button className="ghost-button compact" disabled={busy === "demo"} onClick={() => void controlDemo(!demoService.outage)}>{demoService.outage ? <Check size={13} /> : <CloudOff size={13} />}{demoService.outage ? "Bring it back" : "Cause an outage"}</button><div className="mini-chart">{chartBars.map((bar, index) => <span className={bar.down ? "down" : ""} style={{ height: `${bar.height}%` }} key={index} />)}</div></div>}
       </section>
 
       <AnimatePresence>
-        {showRegister && (
-          <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event: React.MouseEvent<HTMLDivElement>) => { if (event.target === event.currentTarget) setShowRegister(false); }}>
-            <motion.div className="modal" initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }}>
-              <div className="modal-head"><div><h2>Put a promise on the line</h2><p>One deposit. One clear rule. No need to sound threatening in the subject line.</p></div><button className="icon-button" onClick={() => setShowRegister(false)} aria-label="Close registration" title="Close registration"><X size={17} /></button></div>
-              <form onSubmit={submitRegistration}>
-                <div className="form-grid">
-                  <div className="field full"><label htmlFor="service_name">Service name</label><input id="service_name" value={form.service_name} onChange={(event) => setForm({ ...form, service_name: event.target.value })} required /></div>
-                  <div className="field full"><label htmlFor="service_url">Service health URL</label><input id="service_url" type="url" placeholder="https://your-service.com/health" value={form.service_url} onChange={(event) => setForm({ ...form, service_url: event.target.value })} /></div>
-                  <div className="field full"><label htmlFor="terms">SLA terms</label><textarea id="terms" value={form.terms} onChange={(event) => setForm({ ...form, terms: event.target.value })} required /></div>
-                  <div className="field"><label htmlFor="threshold">Uptime threshold</label><input id="threshold" type="number" min="0.01" max="100" step="0.01" value={form.threshold} onChange={(event) => setForm({ ...form, threshold: event.target.value })} required /></div>
-                  <div className="field"><label htmlFor="window_days">Measurement days</label><input id="window_days" type="number" min="1" max="365" value={form.window_days} onChange={(event) => setForm({ ...form, window_days: event.target.value })} required /></div>
-                  <div className="field"><label htmlFor="compensation_type">Settlement</label><select id="compensation_type" value={form.compensation_type} onChange={(event) => setForm({ ...form, compensation_type: event.target.value })}><option value="refund">Refund in GEN</option><option value="credit">Credit recorded</option></select></div>
-                  <div className="field"><label htmlFor="compensation">Settlement share</label><input id="compensation" type="number" min="0.01" max="100" step="0.01" value={form.compensation} onChange={(event) => setForm({ ...form, compensation: event.target.value })} required /></div>
-                  <div className="field"><label htmlFor="deposit">Subscription deposit in GEN</label><input id="deposit" type="number" min="0.001" step="0.001" value={form.deposit} onChange={(event) => setForm({ ...form, deposit: event.target.value })} required /></div>
-                </div>
-                <div className="modal-footer"><span>Signed by your email wallet on GenLayer Studio</span><button className="primary-button light" disabled={busy === "register"} type="submit">{busy === "register" ? <RefreshCw size={15} className="spin" /> : <ShieldCheck size={15} />} Register agreement</button></div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
+        {showRolePicker && <RolePicker onClose={() => setShowRolePicker(false)} onContinue={chooseRole} />}
+        {showRegister && <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) setShowRegister(false); }}><motion.div className="modal" initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }}><div className="modal-head"><div><p className="section-kicker">Provider listing</p><h2>Put a service on the line</h2><p>These are the terms customers will see before they subscribe.</p></div><button className="icon-button" onClick={() => setShowRegister(false)} aria-label="Close service listing" title="Close service listing"><X size={17} /></button></div><form onSubmit={registerService}><div className="form-grid"><div className="field full"><label htmlFor="service_name">Service name</label><input id="service_name" value={serviceForm.service_name} onChange={(event) => setServiceForm({ ...serviceForm, service_name: event.target.value })} required /></div><div className="field full"><label htmlFor="service_url">Service health URL</label><input id="service_url" type="url" placeholder="https://your-service.com/health" value={serviceForm.service_url} onChange={(event) => setServiceForm({ ...serviceForm, service_url: event.target.value })} /></div><div className="field full"><label htmlFor="terms">Provider terms</label><textarea id="terms" value={serviceForm.terms} onChange={(event) => setServiceForm({ ...serviceForm, terms: event.target.value })} required /></div><div className="field"><label htmlFor="threshold">Uptime threshold</label><input id="threshold" type="number" min="0.01" max="100" step="0.01" value={serviceForm.threshold} onChange={(event) => setServiceForm({ ...serviceForm, threshold: event.target.value })} required /></div><div className="field"><label htmlFor="window_days">Measurement days</label><input id="window_days" type="number" min="1" max="365" value={serviceForm.window_days} onChange={(event) => setServiceForm({ ...serviceForm, window_days: event.target.value })} required /></div><div className="field"><label htmlFor="compensation_type">Compensation</label><select id="compensation_type" value={serviceForm.compensation_type} onChange={(event) => setServiceForm({ ...serviceForm, compensation_type: event.target.value })}><option value="refund">Refund in GEN</option><option value="credit">Service credit recorded</option></select></div><div className="field"><label htmlFor="compensation">Compensation share</label><input id="compensation" type="number" min="0.01" max="100" step="0.01" value={serviceForm.compensation} onChange={(event) => setServiceForm({ ...serviceForm, compensation: event.target.value })} required /></div><div className="field"><label htmlFor="price">Subscription price in GEN</label><input id="price" type="number" min="0.001" step="0.001" value={serviceForm.price} onChange={(event) => setServiceForm({ ...serviceForm, price: event.target.value })} required /></div><div className="field"><label htmlFor="collateral">Coverage collateral in GEN</label><input id="collateral" type="number" min="0.001" step="0.001" value={serviceForm.collateral} onChange={(event) => setServiceForm({ ...serviceForm, collateral: event.target.value })} required /></div></div><div className="modal-footer"><span>Provider collateral funds valid subscriber claims.</span><button className="primary-button light" disabled={busy === "register"} type="submit">{busy === "register" ? <RefreshCw size={15} className="spin" /> : <ShieldCheck size={15} />} List service</button></div></form></motion.div></motion.div>}
       </AnimatePresence>
-
       <AnimatePresence>{toast && <motion.div className="toast" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} onAnimationComplete={() => window.setTimeout(() => setToast(""), 4200)}>{toast}</motion.div>}</AnimatePresence>
     </main>
   );

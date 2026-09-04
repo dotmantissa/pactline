@@ -27,7 +27,8 @@ await pool.query(`
   create table if not exists monitor_snapshots (
     id bigserial primary key,
     snapshot_id text not null unique,
-    agreement_id text not null,
+    service_id text,
+    agreement_id text,
     period_start timestamptz not null,
     period_end timestamptz not null,
     uptime_bps integer not null,
@@ -37,6 +38,10 @@ await pool.query(`
     signature text not null,
     created_at timestamptz not null default now()
   );
+  alter table monitor_snapshots add column if not exists service_id text;
+  update monitor_snapshots
+  set service_id = agreement_id
+  where service_id is null and agreement_id is not null;
 `);
 await pool.end();
 console.log("Pactline database is ready.");

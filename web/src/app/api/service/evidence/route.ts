@@ -4,21 +4,22 @@ import { database } from "@/lib/db";
 export async function GET(request: NextRequest) {
   try {
     const params = request.nextUrl.searchParams;
-    const agreementId = params.get("agreement_id");
+    const serviceId = params.get("service_id") ?? params.get("agreement_id");
     const periodStart = params.get("period_start");
-    if (!agreementId || !periodStart) {
+    if (!serviceId || !periodStart) {
       return NextResponse.json(
-        { error: "agreement_id and period_start are required" },
+        { error: "service_id and period_start are required" },
         { status: 400 },
       );
     }
     const result = await database().query(
-      `select snapshot_id, agreement_id, period_start, period_end,
+      `select snapshot_id, coalesce(service_id, agreement_id) as service_id,
+              period_start, period_end,
               uptime_bps, total_checks, failed_checks, signature
        from monitor_snapshots
-       where agreement_id = $1 and period_start = $2
+       where coalesce(service_id, agreement_id) = $1 and period_start = $2
        limit 1`,
-      [agreementId, periodStart],
+      [serviceId, periodStart],
     );
     if (!result.rows[0]) {
       return NextResponse.json({ error: "Snapshot not found" }, { status: 404 });
