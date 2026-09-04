@@ -13,7 +13,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           theme: "light",
           accentColor: "#5e30e3",
           logo: "/icon.svg",
-          landingHeader: "Your service has a promise. Pactline keeps the receipt.",
+          landingHeader: "Providers make the promise. Pactline makes it count.",
         },
         loginMethods: ["email"],
         embeddedWallets: {

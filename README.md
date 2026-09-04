@@ -1,18 +1,18 @@
 # Pactline
 
-Pactline gives software promises a place to land.
+Pactline is a provider marketplace for software reliability.
 
-A customer registers a service, writes down the uptime rule, and places a deposit behind it. A monitor records signed evidence. When the service misses the promise, the customer can file a claim. GenLayer checks the evidence and records the result. A refund or a credit follows the decision.
+A provider lists a service, writes the uptime terms, chooses the subscription price, and deposits collateral. A user subscribes to that service through Pactline. The monitor records signed uptime evidence. When the measurement window ends, the user can file a claim. GenLayer checks the evidence against the provider terms and the contract records the result. A valid refund is paid from the provider collateral. A credit is recorded for services that use credit compensation.
 
-The demo includes a service that can be taken offline from the dashboard. That service is real. Its state and every health check are stored in Neon. The monitor worker checks the service, signs a daily snapshot, stores the evidence packet, and publishes the snapshot to the Pactline contract.
+The point is simple: a reliability promise should have a clear rule, visible evidence, and somewhere for the compensation to come from.
 
 ## What is included
 
-The `contracts` folder contains the Pactline intelligent contract. It stores agreements, deposits, snapshots, claims, and settlement results. Public evidence is fetched through `gl.nondet.web.get()`. Normalized uptime values use strict equality, so language model interpretation is not needed for a number that can be checked directly.
+The `contracts` folder contains the Pactline intelligent contract. It stores provider listings, subscription payments, collateral reservations, signed snapshots, claims, and settlement results. Public evidence is fetched through `gl.nondet.web.get()`. Normalized uptime values use strict equality, so language model interpretation is not needed for a number that can be checked directly. GenLayer consensus is reserved for the parts of a claim that need interpretation.
 
-The `web` folder contains the Next application and its backend routes. It offers email sign in through Privy, abstract transactions through an embedded wallet, the service simulator, the Neon database routes, and the dashboard.
+The `web` folder contains the Next application and its backend routes. It offers email sign in through Privy, abstract transactions through an embedded wallet, a public landing page, a role based provider or user workspace, the service simulator, and the Neon database routes.
 
-The `worker` folder contains the monitoring worker. It checks active services, calculates uptime, signs the evidence, and publishes snapshots to GenLayer Studio.
+The `worker` folder contains the monitoring worker. It reads active services from the contract, checks each registered health URL, calculates uptime, signs the evidence, stores the packet, and publishes snapshots to GenLayer Studio.
 
 ## Run it locally
 
@@ -25,7 +25,7 @@ npm --prefix web install
 npm --prefix worker install
 ```
 
-Copy `web/.env.example` to `web/.env.local` and fill in the database URL, the publisher secret, and the contract address. Initialise the database:
+Copy `web/.env.example` to `web/.env.local` and add the database URL, publisher secret, monitor key, and contract address. Keep private values outside the repository. Initialise the database:
 
 ```bash
 npm --prefix web run db:init
@@ -47,7 +47,7 @@ The dashboard opens at `http://localhost:3000`.
 
 ## Contract checks
 
-The direct suite covers registration, validation, access control, snapshot publication, evidence equality, duplicate claims, breach decisions, clear decisions, and settlement amounts.
+The direct suite covers provider registration, collateral validation, provider access control, subscriptions, reservation limits, paused services, snapshot publication, evidence equality, duplicate claims, breach decisions, clear decisions, and settlement amounts.
 
 ```bash
 genvm-lint check contracts/Pactline.py
@@ -56,7 +56,7 @@ pytest tests/direct -v
 
 ## Studionet deployment
 
-Set `DEPLOYER_KEY` in the shell that runs the deployment. The key is never stored in the repository.
+Set `DEPLOYER_KEY` in the shell that runs the deployment. Keep the key outside the repository.
 
 ```bash
 genlayer network set studionet
@@ -69,4 +69,14 @@ The deployment script records the contract address in `deploy/addresses.json` an
 
 ## Product notes
 
-The demo service is intentionally simple. It gives the product a visible failure mode without pretending that a test fixture is production evidence. In a real integration, the service URL would belong to the customer and the monitor would run from a managed scheduler.
+The demo service is intentionally simple. It gives the product a visible failure mode without pretending that a test fixture is production evidence. Providers can use their own public health URL when they list a service. The monitor can then run from a managed scheduler and publish one signed snapshot per measurement window.
+
+The main contract methods are:
+
+* `register_service` for provider listings and initial collateral
+* `add_service_collateral` for adding coverage
+* `subscribe_service` for user subscriptions
+* `publish_snapshot` for monitor evidence
+* `file_claim` for evidence based resolution
+* `pause_service` for stopping new subscriptions
+* `withdraw_provider_revenue` for provider subscription revenue
