@@ -982,6 +982,23 @@ h1 {
   margin-top: 12px;
 }
 
+.data-notice {
+  align-items: center;
+  background: var(--soft-yellow);
+  border: 1px solid rgba(19, 20, 22, 0.18);
+  color: var(--ink);
+  display: flex;
+  font-size: 12px;
+  gap: 9px;
+  margin: -20px 0 22px;
+  padding: 11px 13px;
+}
+
+.data-notice svg {
+  color: var(--purple);
+  flex: 0 0 auto;
+}
+
 .spin {
   animation: spin 900ms linear infinite;
 }

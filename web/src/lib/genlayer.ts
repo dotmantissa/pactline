@@ -17,6 +17,28 @@ export type TxResult = {
 
 let readClient: ReturnType<typeof createClient> | undefined;
 
+export async function canReachGenLayer(): Promise<boolean> {
+  try {
+    const response = await fetch(RPC_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: Date.now(),
+        method: "eth_chainId",
+        params: [],
+      }),
+      signal: AbortSignal.timeout(5000),
+      cache: "no-store",
+    });
+    if (!response.ok) return false;
+    const data = (await response.json()) as { error?: unknown };
+    return !data.error;
+  } catch {
+    return false;
+  }
+}
+
 function reader() {
   readClient ??= createClient({ chain: chains.studionet, endpoint: RPC_URL });
   return readClient;

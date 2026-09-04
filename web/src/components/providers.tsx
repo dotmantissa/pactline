@@ -14,6 +14,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           accentColor: "#5e30e3",
           logo: "/icon.svg",
           landingHeader: "Providers make the promise. Pactline makes it count.",
+          walletList: [],
         },
         loginMethods: ["email"],
         embeddedWallets: {
