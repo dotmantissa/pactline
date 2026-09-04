@@ -1,12 +1,12 @@
 {
   "network": "studionet",
   "contractName": "Pactline",
-  "contractAddress": "0x4f63eDf673C66d1ed213F9c5542d3810b22CDF80",
+  "contractAddress": "0xE292147cad2605B7158026a8C5feE5fe6d626256",
   "deployerAddress": "0xBC1399c55538eC034d4Da550C03c34Ae0C357f53",
-  "deploymentTransaction": "0x1765e17ac52e726b3d45f60f3186693d2656cf0d8b28967f901f51f46b0fd568",
-  "deployedAt": "2026-09-04T12:09:05.172Z",
+  "deploymentTransaction": "0x654b39ef1d7afbd14b96fd48ac7d1343a7913e32fa2e51c31f44e75cf6b2cc5d",
+  "deployedAt": "2026-09-04T13:00:34.883Z",
   "runner": "py-genlayer:1jb45aa8ynh2a9c9xn3b7qqh8sm5q93hwfp7jqmwsfhh8jpz09h6",
-  "sourceSha256": "d12f712768332c3d81a0bec7236ee5c87bbf5f70875870c808ad96b1471f806d",
+  "sourceSha256": "4ddcc6bf080ad2e21c745704c74e6413405b270eb4b7627ffbb357e5b78c4233",
   "counts": {
     "agreements": 0,
     "claims": 0,
