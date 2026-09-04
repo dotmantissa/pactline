@@ -4,6 +4,7 @@
   --deep: #0e1f4d;
   --ice: #94c4db;
   --electric: #1c1cb2;
+  --white: #ffffff;
   --deep-soft: rgba(14, 31, 77, 0.12);
   --deep-line: rgba(14, 31, 77, 0.2);
   --ice-soft: rgba(148, 196, 219, 0.34);
@@ -52,6 +53,7 @@ a {
 
 .topbar {
   align-items: center;
+  background: var(--white);
   border-bottom: 1px solid var(--deep-line);
   display: flex;
   gap: clamp(16px, 4vw, 58px);
@@ -228,9 +230,10 @@ a {
 }
 
 .page {
+  --gutter: clamp(18px, 5vw, 76px);
   margin: 0 auto;
   max-width: 1600px;
-  padding: 0 clamp(18px, 5vw, 76px) 76px;
+  padding: 0 var(--gutter) 76px;
 }
 
 .signin {
@@ -240,8 +243,8 @@ a {
   display: flex;
   gap: 18px;
   justify-content: space-between;
-  margin: 0 calc(clamp(18px, 5vw, 76px) * -1);
-  padding: 12px clamp(18px, 5vw, 76px);
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 12px var(--gutter);
 }
 
 .signin p {
@@ -297,10 +300,13 @@ h1 {
 .how-intro,
 .workspace-intro {
   align-items: end;
+  background: var(--white);
   border-bottom: 1px solid var(--deep-line);
   display: grid;
   gap: clamp(28px, 7vw, 112px);
   grid-template-columns: minmax(0, 1.18fr) minmax(280px, 0.82fr);
+  margin-inline: calc(var(--gutter) * -1);
+  padding-inline: var(--gutter);
   padding-bottom: clamp(38px, 6vw, 70px);
 }
 
@@ -402,10 +408,14 @@ h1 {
 }
 
 .landing-audience {
+  background: var(--white);
   border-bottom: 1px solid var(--deep-line);
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
-  padding: clamp(36px, 6vw, 70px) 0 20px;
+  margin-inline: calc(var(--gutter) * -1);
+  margin-top: 18px;
+  padding-inline: var(--gutter);
+  padding-block: clamp(36px, 6vw, 70px) 20px;
 }
 
 .landing-audience-intro {
@@ -457,10 +467,14 @@ h1 {
 
 .landing-footer-cta {
   align-items: center;
+  background: var(--white);
   display: flex;
   gap: 24px;
   justify-content: space-between;
-  padding: clamp(36px, 6vw, 70px) 0;
+  margin-inline: calc(var(--gutter) * -1);
+  margin-top: 18px;
+  padding-inline: var(--gutter);
+  padding-block: clamp(36px, 6vw, 70px);
 }
 
 .landing-footer-cta .section-kicker {
@@ -491,10 +505,14 @@ h1 {
 }
 
 .how-steps {
+  background: var(--white);
   display: grid;
   gap: clamp(22px, 3vw, 48px);
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  padding: clamp(36px, 5vw, 62px) 0;
+  margin-inline: calc(var(--gutter) * -1);
+  margin-top: 18px;
+  padding-inline: var(--gutter);
+  padding-block: clamp(36px, 5vw, 62px);
 }
 
 .how-step {
@@ -536,12 +554,16 @@ h1 {
 }
 
 .how-benefits {
+  background: var(--white);
   border-bottom: 1px solid var(--deep-line);
   border-top: 1px solid var(--deep-line);
   display: grid;
   gap: clamp(28px, 7vw, 112px);
   grid-template-columns: minmax(220px, 0.7fr) minmax(0, 1.3fr);
-  padding: clamp(36px, 5vw, 62px) 0;
+  margin-inline: calc(var(--gutter) * -1);
+  margin-top: 18px;
+  padding-inline: var(--gutter);
+  padding-block: clamp(36px, 5vw, 62px);
 }
 
 .benefit-list {
@@ -608,10 +630,13 @@ h1 {
 }
 
 .workspace-stats {
+  background: var(--white);
   border-bottom: 1px solid var(--deep-line);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
+  margin-inline: calc(var(--gutter) * -1);
   margin-bottom: clamp(34px, 5vw, 62px);
+  padding-inline: var(--gutter);
 }
 
 .workspace-stats > div {
@@ -709,7 +734,7 @@ select:focus,
 .service-card,
 .provider-service,
 .panel {
-  background: rgba(148, 196, 219, 0.28);
+  background: var(--white);
   border: 1px solid var(--deep-line);
 }
 
@@ -896,7 +921,7 @@ select:focus,
 }
 
 .provider-empty {
-  background: rgba(148, 196, 219, 0.28);
+  background: var(--white);
 }
 
 .empty-state > svg {
@@ -1083,7 +1108,7 @@ select:focus,
 
 .modal,
 .role-modal {
-  background: var(--ice);
+  background: var(--white);
   border: 1px solid var(--deep);
   box-shadow: 0 28px 80px rgba(14, 31, 77, 0.3);
   max-height: min(760px, calc(100vh - 40px));
