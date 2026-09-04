@@ -18,24 +18,31 @@ ERROR_TRANSIENT = "[TRANSIENT]"
 
 
 class Pactline(gl.Contract):
-    """On chain SLA registry, evidence ledger, and claim settlement engine."""
+    """Provider service registry, SLA coverage pool, evidence ledger, and settlement engine."""
 
     owner: Address
     monitor_operator: Address
-    agreement_seq: u256
+    service_seq: u256
+    subscription_seq: u256
+    snapshot_seq: u256
     claim_seq: u256
-    agreements: TreeMap[str, str]
-    agreement_order: DynArray[str]
+    services: TreeMap[str, str]
+    service_order: DynArray[str]
+    subscriptions: TreeMap[str, str]
+    subscription_order: DynArray[str]
+    subscription_index: TreeMap[str, str]
     snapshots: TreeMap[str, str]
     snapshot_order: DynArray[str]
     claims: TreeMap[str, str]
     claim_order: DynArray[str]
-    claimed_snapshots: TreeMap[str, bool]
+    claimed_windows: TreeMap[str, bool]
 
     def __init__(self):
         self.owner = gl.message.sender_address
         self.monitor_operator = gl.message.sender_address
-        self.agreement_seq = u256(0)
+        self.service_seq = u256(0)
+        self.subscription_seq = u256(0)
+        self.snapshot_seq = u256(0)
         self.claim_seq = u256(0)
 
     def _now_epoch(self) -> u256:
@@ -51,18 +58,6 @@ class Pactline(gl.Contract):
         except Exception:
             return u256(0)
 
-    def _agreement_key(self, agreement_id: u256) -> str:
-        return "agreement_" + str(int(agreement_id)).zfill(8)
-
-    def _claim_key(self, claim_id: u256) -> str:
-        return "claim_" + str(int(claim_id)).zfill(8)
-
-    def _snapshot_key(self, agreement_id: str, period_start: str) -> str:
-        digest = hashlib.sha256(
-            f"{agreement_id}:{period_start}".encode("utf-8")
-        ).hexdigest()
-        return "snapshot_" + digest[:48]
-
     def _date_epoch(self, value: str) -> u256:
         try:
             parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
@@ -72,11 +67,39 @@ class Pactline(gl.Contract):
         except Exception:
             raise gl.vm.UserError(ERROR_EXPECTED + " period end is invalid")
 
-    def _load_agreement(self, agreement_id: str) -> dict:
-        key = str(agreement_id).strip()
-        encoded = self.agreements.get(key, "")
+    def _service_key(self, service_id: u256) -> str:
+        return str(int(service_id))
+
+    def _snapshot_key(self, service_id: str, period_start: str) -> str:
+        digest = hashlib.sha256(
+            f"{service_id}:{period_start}".encode("utf-8")
+        ).hexdigest()
+        return "snapshot_" + digest[:48]
+
+    def _subscription_key(self, service_id: str, customer: str) -> str:
+        digest = hashlib.sha256(
+            f"{service_id}:{customer}".encode("utf-8")
+        ).hexdigest()
+        return "subscription_index_" + digest[:48]
+
+    def _claim_key(self, subscription_id: str, snapshot_id: str) -> str:
+        digest = hashlib.sha256(
+            f"{subscription_id}:{snapshot_id}".encode("utf-8")
+        ).hexdigest()
+        return "claim_window_" + digest[:48]
+
+    def _load_service(self, service_id: str) -> dict:
+        key = str(service_id).strip()
+        encoded = self.services.get(key, "")
         if not encoded:
-            raise gl.vm.UserError(ERROR_EXPECTED + " agreement does not exist")
+            raise gl.vm.UserError(ERROR_EXPECTED + " service does not exist")
+        return json.loads(encoded)
+
+    def _load_subscription(self, subscription_id: str) -> dict:
+        key = str(subscription_id).strip()
+        encoded = self.subscriptions.get(key, "")
+        if not encoded:
+            raise gl.vm.UserError(ERROR_EXPECTED + " subscription does not exist")
         return json.loads(encoded)
 
     def _load_snapshot(self, snapshot_id: str) -> dict:
@@ -102,6 +125,13 @@ class Pactline(gl.Contract):
                 ERROR_EXPECTED + f" {field} must be an ISO date"
             )
         return text
+
+    def _max_payout(self, service: dict, subscription_fee: int) -> u256:
+        return (
+            u256(subscription_fee)
+            * u256(int(service["compensation_bps"]))
+            // u256(10000)
+        )
 
     def _resolve_evidence(self, snapshot: dict) -> dict:
         url = self._validate_url(snapshot["evidence_url"], "evidence_url")
@@ -129,7 +159,7 @@ class Pactline(gl.Contract):
                         ERROR_EXTERNAL + " evidence is not a JSON object"
                     )
                 return {
-                    "agreement_id": str(parsed.get("agreement_id", "")),
+                    "service_id": str(parsed.get("service_id", "")),
                     "period_start": str(parsed.get("period_start", "")),
                     "period_end": str(parsed.get("period_end", "")),
                     "uptime_bps": int(parsed.get("uptime_bps", -1)),
@@ -160,7 +190,7 @@ class Pactline(gl.Contract):
         self.monitor_operator = operator
 
     @gl.public.write.payable
-    def register_sla(
+    def register_service(
         self,
         service_name: str,
         service_url: str,
@@ -169,6 +199,7 @@ class Pactline(gl.Contract):
         window_days: u256,
         compensation_type: str,
         compensation_bps: u256,
+        subscription_price_wei: u256,
     ) -> str:
         name = str(service_name).strip()
         if not name or len(name) > 96:
@@ -176,7 +207,7 @@ class Pactline(gl.Contract):
         url = self._validate_url(service_url, "service_url")
         terms_text = str(terms).strip()
         if not terms_text or len(terms_text) > 1000:
-            raise gl.vm.UserError(ERROR_EXPECTED + " SLA terms are required")
+            raise gl.vm.UserError(ERROR_EXPECTED + " service terms are required")
         if threshold_bps < u256(1) or threshold_bps > u256(10000):
             raise gl.vm.UserError(
                 ERROR_EXPECTED + " threshold must be between 0.01 and 100 percent"
@@ -194,14 +225,28 @@ class Pactline(gl.Contract):
             raise gl.vm.UserError(
                 ERROR_EXPECTED + " compensation must be between 0.01 and 100 percent"
             )
+        if subscription_price_wei <= u256(0):
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " subscription price is required"
+            )
         if gl.message.value <= u256(0):
-            raise gl.vm.UserError(ERROR_EXPECTED + " a subscription deposit is required")
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " provider collateral is required"
+            )
+        max_payout = self._max_payout(
+            {"compensation_bps": int(compensation_bps)},
+            int(subscription_price_wei),
+        )
+        if max_payout <= u256(0) or gl.message.value < max_payout:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " collateral must cover one subscription claim"
+            )
 
-        self.agreement_seq += u256(1)
-        agreement_id = str(int(self.agreement_seq))
-        agreement = {
-            "agreement_id": agreement_id,
-            "customer": str(gl.message.sender_address),
+        self.service_seq += u256(1)
+        service_id = self._service_key(self.service_seq)
+        service = {
+            "service_id": service_id,
+            "provider": str(gl.message.sender_address),
             "service_name": name,
             "service_url": url,
             "terms": terms_text,
@@ -209,32 +254,137 @@ class Pactline(gl.Contract):
             "window_days": int(window_days),
             "compensation_type": kind,
             "compensation_bps": int(compensation_bps),
-            "deposit_wei": int(gl.message.value),
+            "subscription_price_wei": int(subscription_price_wei),
+            "collateral_wei": int(gl.message.value),
+            "reserved_wei": 0,
+            "provider_revenue_wei": 0,
+            "subscriber_count": 0,
             "status": STATUS_ACTIVE,
             "created_at": int(self._now_epoch()),
-            "claim_count": 0,
             "last_uptime_bps": 10000,
         }
-        self.agreements[agreement_id] = json.dumps(agreement, sort_keys=True)
-        self.agreement_order.append(agreement_id)
-        return agreement_id
+        self.services[service_id] = json.dumps(service, sort_keys=True)
+        self.service_order.append(service_id)
+        return service_id
+
+    @gl.public.write.payable
+    def add_service_collateral(self, service_id: str) -> None:
+        service = self._load_service(service_id)
+        if str(gl.message.sender_address) != service["provider"]:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " only the provider can add collateral"
+            )
+        if gl.message.value <= u256(0):
+            raise gl.vm.UserError(ERROR_EXPECTED + " collateral must be positive")
+        service["collateral_wei"] = int(service["collateral_wei"]) + int(
+            gl.message.value
+        )
+        self.services[str(service_id)] = json.dumps(service, sort_keys=True)
 
     @gl.public.write
-    def pause_sla(self, agreement_id: str) -> None:
-        agreement = self._load_agreement(agreement_id)
-        if str(gl.message.sender_address) != agreement["customer"]:
-            raise gl.vm.UserError(ERROR_EXPECTED + " only the customer can pause an SLA")
-        if agreement["status"] not in (STATUS_ACTIVE, STATUS_PAUSED):
-            raise gl.vm.UserError(ERROR_EXPECTED + " SLA is already settled")
-        agreement["status"] = (
-            STATUS_PAUSED if agreement["status"] == STATUS_ACTIVE else STATUS_ACTIVE
+    def pause_service(self, service_id: str) -> None:
+        service = self._load_service(service_id)
+        if str(gl.message.sender_address) != service["provider"]:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " only the provider can pause a service"
+            )
+        if service["status"] not in (STATUS_ACTIVE, STATUS_PAUSED):
+            raise gl.vm.UserError(ERROR_EXPECTED + " service is already closed")
+        service["status"] = (
+            STATUS_PAUSED
+            if service["status"] == STATUS_ACTIVE
+            else STATUS_ACTIVE
         )
-        self.agreements[str(agreement_id)] = json.dumps(agreement, sort_keys=True)
+        self.services[str(service_id)] = json.dumps(service, sort_keys=True)
+
+    @gl.public.write
+    def withdraw_provider_revenue(
+        self, service_id: str, amount_wei: u256
+    ) -> None:
+        service = self._load_service(service_id)
+        if str(gl.message.sender_address) != service["provider"]:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " only the provider can withdraw revenue"
+            )
+        if amount_wei <= u256(0) or amount_wei > u256(
+            int(service["provider_revenue_wei"])
+        ):
+            raise gl.vm.UserError(ERROR_EXPECTED + " revenue amount is unavailable")
+        service["provider_revenue_wei"] = int(
+            u256(int(service["provider_revenue_wei"])) - amount_wei
+        )
+        self.services[str(service_id)] = json.dumps(service, sort_keys=True)
+        self._send_value(gl.message.sender_address, amount_wei)
+
+    @gl.public.write.payable
+    def subscribe_service(self, service_id: str) -> str:
+        service = self._load_service(service_id)
+        if service["status"] != STATUS_ACTIVE:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " service is not accepting subscribers"
+            )
+        if str(gl.message.sender_address) == service["provider"]:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " provider cannot subscribe to its own service"
+            )
+        price = u256(int(service["subscription_price_wei"]))
+        if gl.message.value != price:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " subscription payment does not match the price"
+            )
+        max_payout = self._max_payout(service, int(price))
+        available = u256(int(service["collateral_wei"])) - u256(
+            int(service["reserved_wei"])
+        )
+        if available < max_payout:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " provider collateral is fully reserved"
+            )
+
+        index_key = self._subscription_key(
+            str(service["service_id"]), str(gl.message.sender_address)
+        )
+        existing_id = self.subscription_index.get(index_key, "")
+        if existing_id:
+            existing = self._load_subscription(existing_id)
+            if existing["status"] == STATUS_ACTIVE:
+                raise gl.vm.UserError(
+                    ERROR_EXPECTED + " customer already has an active subscription"
+                )
+
+        self.subscription_seq += u256(1)
+        subscription_id = str(int(self.subscription_seq))
+        subscription = {
+            "subscription_id": subscription_id,
+            "service_id": str(service["service_id"]),
+            "customer": str(gl.message.sender_address),
+            "provider": service["provider"],
+            "subscription_price_wei": int(price),
+            "max_payout_wei": int(max_payout),
+            "started_at": int(self._now_epoch()),
+            "status": STATUS_ACTIVE,
+            "claim_count": 0,
+            "compensated_wei": 0,
+        }
+        self.subscriptions[subscription_id] = json.dumps(
+            subscription, sort_keys=True
+        )
+        self.subscription_order.append(subscription_id)
+        self.subscription_index[index_key] = subscription_id
+        service["reserved_wei"] = int(
+            u256(int(service["reserved_wei"])) + max_payout
+        )
+        service["provider_revenue_wei"] = int(
+            u256(int(service["provider_revenue_wei"])) + price
+        )
+        service["subscriber_count"] = int(service["subscriber_count"]) + 1
+        self.services[str(service_id)] = json.dumps(service, sort_keys=True)
+        return subscription_id
 
     @gl.public.write
     def publish_snapshot(
         self,
-        agreement_id: str,
+        service_id: str,
         period_start: str,
         period_end: str,
         uptime_bps: u256,
@@ -247,7 +397,7 @@ class Pactline(gl.Contract):
             raise gl.vm.UserError(
                 ERROR_EXPECTED + " only the monitor operator can publish snapshots"
             )
-        agreement = self._load_agreement(agreement_id)
+        service = self._load_service(service_id)
         start = self._validate_date(period_start, "period_start")
         end = self._validate_date(period_end, "period_end")
         if end <= start:
@@ -259,10 +409,12 @@ class Pactline(gl.Contract):
         if not str(signature).strip():
             raise gl.vm.UserError(ERROR_EXPECTED + " snapshot signature is required")
 
-        snapshot_id = self._snapshot_key(str(agreement["agreement_id"]), start)
+        snapshot_id = self._snapshot_key(str(service["service_id"]), start)
+        if self.snapshots.get(snapshot_id, ""):
+            raise gl.vm.UserError(ERROR_EXPECTED + " snapshot already exists")
         snapshot = {
             "snapshot_id": snapshot_id,
-            "agreement_id": str(agreement["agreement_id"]),
+            "service_id": str(service["service_id"]),
             "period_start": start,
             "period_end": end,
             "uptime_bps": int(uptime_bps),
@@ -273,29 +425,45 @@ class Pactline(gl.Contract):
             "publisher": str(gl.message.sender_address),
             "published_at": int(self._now_epoch()),
         }
+        self.snapshot_seq += u256(1)
         self.snapshots[snapshot_id] = json.dumps(snapshot, sort_keys=True)
         self.snapshot_order.append(snapshot_id)
-        agreement["last_uptime_bps"] = int(uptime_bps)
-        self.agreements[str(agreement_id)] = json.dumps(agreement, sort_keys=True)
+        service["last_uptime_bps"] = int(uptime_bps)
+        self.services[str(service_id)] = json.dumps(service, sort_keys=True)
         return snapshot_id
 
     @gl.public.write
-    def file_claim(self, agreement_id: str, snapshot_id: str) -> str:
-        agreement = self._load_agreement(agreement_id)
-        if str(gl.message.sender_address) != agreement["customer"]:
-            raise gl.vm.UserError(ERROR_EXPECTED + " only the customer can file a claim")
-        if agreement["status"] == STATUS_PAUSED:
-            raise gl.vm.UserError(ERROR_EXPECTED + " resume the SLA before claiming")
+    def file_claim(self, subscription_id: str, snapshot_id: str) -> str:
+        subscription = self._load_subscription(subscription_id)
+        if str(gl.message.sender_address) != subscription["customer"]:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " only the subscriber can file a claim"
+            )
+        if subscription["status"] != STATUS_ACTIVE:
+            raise gl.vm.UserError(ERROR_EXPECTED + " subscription is not active")
+        service = self._load_service(subscription["service_id"])
         snapshot = self._load_snapshot(snapshot_id)
-        if snapshot["agreement_id"] != str(agreement["agreement_id"]):
-            raise gl.vm.UserError(ERROR_EXPECTED + " snapshot belongs to another SLA")
-        if self.claimed_snapshots.get(str(snapshot_id), False):
-            raise gl.vm.UserError(ERROR_EXPECTED + " this snapshot already has a claim")
+        if snapshot["service_id"] != str(service["service_id"]):
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " snapshot belongs to another service"
+            )
+        if self.claimed_windows.get(
+            self._claim_key(subscription_id, snapshot_id), False
+        ):
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " this subscription window already has a claim"
+            )
         if self._now_epoch() < self._date_epoch(snapshot["period_end"]):
             raise gl.vm.UserError(ERROR_EXPECTED + " measurement window has not ended")
+        if self._date_epoch(snapshot["period_end"]) <= u256(
+            int(subscription["started_at"])
+        ):
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " snapshot predates the subscription"
+            )
         evidence = self._resolve_evidence(snapshot)
         expected = {
-            "agreement_id": snapshot["agreement_id"],
+            "service_id": snapshot["service_id"],
             "period_start": snapshot["period_start"],
             "period_end": snapshot["period_end"],
             "uptime_bps": int(snapshot["uptime_bps"]),
@@ -305,33 +473,42 @@ class Pactline(gl.Contract):
         }
         if evidence != expected:
             raise gl.vm.UserError(
-                ERROR_EXTERNAL + " fetched evidence does not match the signed snapshot"
+                ERROR_EXTERNAL + " fetched evidence does not match the snapshot"
             )
 
-        breached = int(evidence["uptime_bps"]) < int(agreement["threshold_bps"])
-        payout = u256(0)
-        status = STATUS_CLEAR
-        if breached:
-            status = STATUS_BREACHED
-            payout = (
-                u256(int(agreement["deposit_wei"]))
-                * u256(int(agreement["compensation_bps"]))
-                // u256(10000)
+        breached = int(evidence["uptime_bps"]) < int(service["threshold_bps"])
+        max_payout = u256(int(subscription["max_payout_wei"]))
+        payout = max_payout if breached else u256(0)
+        if breached and u256(int(service["collateral_wei"])) < payout:
+            raise gl.vm.UserError(
+                ERROR_EXPECTED + " provider collateral is insufficient for this claim"
             )
-            if payout > u256(int(agreement["deposit_wei"])):
-                payout = u256(int(agreement["deposit_wei"]))
+
+        service["reserved_wei"] = int(
+            u256(int(service["reserved_wei"])) - max_payout
+        )
+        if payout > u256(0):
+            service["collateral_wei"] = int(
+                u256(int(service["collateral_wei"])) - payout
+            )
+        self.services[str(service["service_id"])] = json.dumps(
+            service, sort_keys=True
+        )
 
         self.claim_seq += u256(1)
         claim_id = str(int(self.claim_seq))
+        status = STATUS_BREACHED if breached else STATUS_CLEAR
         claim = {
             "claim_id": claim_id,
-            "agreement_id": str(agreement["agreement_id"]),
-            "customer": agreement["customer"],
+            "service_id": str(service["service_id"]),
+            "subscription_id": str(subscription["subscription_id"]),
+            "customer": subscription["customer"],
+            "provider": service["provider"],
             "snapshot_id": str(snapshot_id),
             "status": status,
             "uptime_bps": int(evidence["uptime_bps"]),
-            "threshold_bps": int(agreement["threshold_bps"]),
-            "settlement_type": agreement["compensation_type"],
+            "threshold_bps": int(service["threshold_bps"]),
+            "settlement_type": service["compensation_type"],
             "settlement_wei": int(payout),
             "evidence_url": snapshot["evidence_url"],
             "evidence_signature": snapshot["signature"],
@@ -339,22 +516,38 @@ class Pactline(gl.Contract):
         }
         self.claims[claim_id] = json.dumps(claim, sort_keys=True)
         self.claim_order.append(claim_id)
-        self.claimed_snapshots[str(snapshot_id)] = True
-        agreement["claim_count"] = int(agreement["claim_count"]) + 1
-        self.agreements[str(agreement_id)] = json.dumps(agreement, sort_keys=True)
-        if payout > u256(0) and agreement["compensation_type"] == "refund":
+        self.claimed_windows[self._claim_key(subscription_id, snapshot_id)] = True
+        subscription["claim_count"] = int(subscription["claim_count"]) + 1
+        subscription["compensated_wei"] = int(
+            u256(int(subscription["compensated_wei"])) + payout
+        )
+        self.subscriptions[str(subscription_id)] = json.dumps(
+            subscription, sort_keys=True
+        )
+        if payout > u256(0) and service["compensation_type"] == "refund":
             self._send_value(gl.message.sender_address, payout)
         return claim_id
 
     @gl.public.view
-    def get_agreement(self, agreement_id: str) -> str:
-        return self.agreements.get(str(agreement_id), "")
+    def get_service(self, service_id: str) -> str:
+        return self.services.get(str(service_id), "")
 
     @gl.public.view
-    def get_agreements(self) -> str:
+    def get_services(self) -> str:
         result = []
-        for agreement_id in self.agreement_order:
-            result.append(json.loads(self.agreements[agreement_id]))
+        for service_id in self.service_order:
+            result.append(json.loads(self.services[service_id]))
+        return json.dumps(result, sort_keys=True)
+
+    @gl.public.view
+    def get_subscription(self, subscription_id: str) -> str:
+        return self.subscriptions.get(str(subscription_id), "")
+
+    @gl.public.view
+    def get_subscriptions(self) -> str:
+        result = []
+        for subscription_id in self.subscription_order:
+            result.append(json.loads(self.subscriptions[subscription_id]))
         return json.dumps(result, sort_keys=True)
 
     @gl.public.view
@@ -383,8 +576,9 @@ class Pactline(gl.Contract):
     def get_counts(self) -> str:
         return json.dumps(
             {
-                "agreements": int(self.agreement_seq),
-                "snapshots": len(self.snapshot_order),
+                "services": int(self.service_seq),
+                "subscriptions": int(self.subscription_seq),
+                "snapshots": int(self.snapshot_seq),
                 "claims": int(self.claim_seq),
             },
             sort_keys=True,

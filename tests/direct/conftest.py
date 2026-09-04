@@ -2,7 +2,7 @@ import json
 
 
 def evidence_body(
-    agreement_id: str,
+    service_id: str,
     period_start: str,
     period_end: str,
     uptime_bps: int,
@@ -12,7 +12,7 @@ def evidence_body(
 ) -> str:
     return json.dumps(
         {
-            "agreement_id": agreement_id,
+            "service_id": service_id,
             "period_start": period_start,
             "period_end": period_end,
             "uptime_bps": uptime_bps,
