@@ -7,6 +7,7 @@
     "dev": "npm --prefix web run dev",
     "dev:worker": "npm --prefix worker run dev",
     "build": "npm --prefix web run build",
+    "lint:contracts": ".venv/bin/genvm-lint check contracts/Pactline.py",
     "lint": "npm run lint:contracts && npm --prefix web run lint",
     "typecheck": "npm --prefix web run typecheck",
     "test": ".venv/bin/pytest tests/direct -q",
