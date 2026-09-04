@@ -341,7 +341,6 @@ class Pactline(gl.Contract):
         self.claim_order.append(claim_id)
         self.claimed_snapshots[str(snapshot_id)] = True
         agreement["claim_count"] = int(agreement["claim_count"]) + 1
-        agreement["status"] = status
         self.agreements[str(agreement_id)] = json.dumps(agreement, sort_keys=True)
         if payout > u256(0) and agreement["compensation_type"] == "refund":
             self._send_value(gl.message.sender_address, payout)

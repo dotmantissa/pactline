@@ -152,6 +152,17 @@ def test_snapshot_cannot_be_claimed_twice(
         contract.file_claim(agreement_id, snapshot_id)
 
 
+def test_resolved_agreement_stays_active_for_next_window(
+    direct_vm, direct_deploy, direct_alice, direct_owner
+):
+    contract = direct_deploy("contracts/Pactline.py")
+    agreement_id = register(direct_vm, contract, direct_alice)
+    snapshot_id = publish(direct_vm, contract, direct_owner, agreement_id)
+    direct_vm.sender = direct_alice
+    contract.file_claim(agreement_id, snapshot_id)
+    assert json.loads(contract.get_agreement(agreement_id))["status"] == "active"
+
+
 def test_claim_rejects_mismatched_evidence(
     direct_vm, direct_deploy, direct_alice, direct_owner
 ):
