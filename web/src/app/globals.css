@@ -1231,6 +1231,11 @@ select:focus,
   opacity: 0.68;
 }
 
+.role-footer .primary-button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .form-grid {
   display: grid;
   gap: 14px;
