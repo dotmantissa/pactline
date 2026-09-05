@@ -38,6 +38,13 @@ await pool.query(`
   update monitor_snapshots
   set service_id = agreement_id
   where service_id is null and agreement_id is not null;
+  create table if not exists wallet_drips (
+    wallet_address text primary key,
+    amount_wei numeric not null,
+    tx_hash text,
+    status text not null default 'pending',
+    created_at timestamptz not null default now()
+  );
 `);
 await pool.end();
 console.log("Pactline database is ready.");

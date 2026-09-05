@@ -13,6 +13,7 @@ import {
   CircleAlert,
   ClipboardCheck,
   CloudOff,
+  Copy,
   Filter,
   FileCheck2,
   Link2,
@@ -162,6 +163,17 @@ function WalletModal({ address, balance, balanceError, busy, onClose, onWithdraw
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
   const [formError, setFormError] = useState("");
+  const [copied, setCopied] = useState(false);
+
+  async function copyAddress() {
+    try {
+      await navigator.clipboard.writeText(address);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setFormError("Your browser did not allow the address to be copied.");
+    }
+  }
 
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -201,7 +213,10 @@ function WalletModal({ address, balance, balanceError, busy, onClose, onWithdraw
         <div className="wallet-balance">
           <span>Available balance</span>
           <strong>{balance === null ? "Balance unavailable" : formatGenWei(balance)}</strong>
-          <small className="mono">{shortAddress(address)}</small>
+          <div className="wallet-address-row">
+            <small className="mono wallet-address">{address}</small>
+            <button className="icon-button compact-icon wallet-copy" onClick={() => void copyAddress()} type="button" aria-label="Copy embedded wallet address" title={copied ? "Address copied" : "Copy embedded wallet address"}>{copied ? <Check size={14} /> : <Copy size={14} />}</button>
+          </div>
         </div>
         {balanceError && <div className="data-notice wallet-error" role="status"><CircleAlert size={15} /> {balanceError}</div>}
         <form onSubmit={submit}>
@@ -315,7 +330,7 @@ function UserWorkspace({ services, subscriptions, claims, snapshots, address, bu
 }
 
 export default function Home() {
-  const { ready, authenticated, user } = usePrivy();
+  const { ready, authenticated } = usePrivy();
   const { address, provider, connect, disconnect, wrongNetwork } = useWallet();
   const [services, setServices] = useState<Service[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -422,7 +437,32 @@ export default function Home() {
     return () => window.clearInterval(timer);
   }, [address, authenticated, refreshWalletBalance]);
 
-  const email = user?.linkedAccounts?.find((account) => account.type === "email")?.address ?? "";
+  useEffect(() => {
+    if (!authenticated || !address) return;
+    let cancelled = false;
+    async function requestStarterBalance() {
+      try {
+        const response = await fetch("/api/wallet/drip", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ address }),
+        });
+        const data = (await response.json()) as { status?: string; error?: string };
+        if (!response.ok) throw new Error(data.error ?? "The starter balance could not be added.");
+        if (!cancelled && data.status === "dripped") {
+          setToast("1,000 GEN has been added to your embedded wallet.");
+          await refreshWalletBalance();
+        }
+      } catch (error) {
+        if (!cancelled) setWalletBalanceError(error instanceof Error ? error.message : "The starter balance could not be added.");
+      }
+    }
+    void requestStarterBalance();
+    return () => {
+      cancelled = true;
+    };
+  }, [address, authenticated, refreshWalletBalance]);
+
   const currentRole = role;
   function startAuth() {
     if (authenticated && role) {
@@ -583,7 +623,7 @@ export default function Home() {
           <button className={`top-tab ${(authenticated ? view === "app" : view === "landing") ? "selected" : ""}`} type="button" role="tab" aria-selected={authenticated ? view === "app" : view === "landing"} onClick={() => setView(authenticated ? "app" : "landing")}>{authenticated ? "Workspace" : "Home"}</button>
           <button className={`top-tab ${view === "how" ? "selected" : ""}`} type="button" role="tab" aria-selected={view === "how"} onClick={() => setView("how")}>How it works</button>
         </nav>
-        <div className="top-actions"><span className="network">Studio network</span>{authenticated ? <><span className="mono top-email">{email || shortAddress(address)}</span><button className="icon-button" onClick={() => setShowWallet(true)} aria-label="Open embedded wallet" title="Open embedded wallet"><Wallet size={16} /></button><button className="icon-button" onClick={() => setShowLogoutConfirm(true)} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button></> : <button className="primary-button" onClick={startAuth}><Link2 size={16} /> Sign in with email</button>}</div>
+        <div className="top-actions"><span className="network">Studio network</span>{authenticated ? <><button className="icon-button" onClick={() => setShowWallet(true)} aria-label="Open embedded wallet" title="Open embedded wallet"><Wallet size={16} /></button><button className="icon-button" onClick={() => setShowLogoutConfirm(true)} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button></> : <button className="primary-button" onClick={startAuth}><Link2 size={16} /> Sign in with email</button>}</div>
       </header>
 
       <section className="page">

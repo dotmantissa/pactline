@@ -10,7 +10,7 @@ The point is simple: a reliability promise should have a clear rule, visible evi
 
 The `contracts` folder contains the Pactline intelligent contract. It stores provider listings, subscription payments, collateral reservations, signed snapshots, claims, and settlement results. Public evidence is fetched through `gl.nondet.web.get()`. Normalized uptime values use strict equality, so language model interpretation is not needed for a number that can be checked directly. GenLayer consensus is reserved for the parts of a claim that need interpretation.
 
-The `web` folder contains the Next application and its backend routes. It offers email sign in through Privy, abstract transactions through an embedded wallet, a public landing page, a role based provider or user workspace, the service simulator, and the Neon database routes.
+The `web` folder contains the Next application and its backend routes. It offers email sign in through Privy, abstract transactions through an embedded wallet, a public landing page, a role based provider or user workspace, the service simulator, the Neon database routes, and a one time 1,000 GEN starter balance for each embedded wallet.
 
 The `worker` folder contains the monitoring worker. It reads active services from the contract, checks each registered health URL, calculates uptime, signs the evidence, stores the packet, and publishes snapshots to GenLayer Studio.
 
@@ -25,7 +25,7 @@ npm --prefix web install
 npm --prefix worker install
 ```
 
-Copy `web/.env.example` to `web/.env.local` and add the database URL, publisher secret, monitor key, and contract address. Keep private values outside the repository. Initialise the database:
+Copy `web/.env.example` to `web/.env.local` and add the database URL, faucet key, publisher secret, monitor key, and contract address. Keep private values outside the repository. Initialise the database:
 
 ```bash
 npm --prefix web run db:init
