@@ -1,14 +1,14 @@
 @import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap");
 
 :root {
-  --deep: #0e1f4d;
-  --ice: #94c4db;
-  --electric: #1c1cb2;
+  --deep: #1d1d1d;
+  --ice: #ffffff;
+  --electric: #5aff88;
   --white: #ffffff;
-  --deep-soft: rgba(14, 31, 77, 0.12);
-  --deep-line: rgba(14, 31, 77, 0.2);
-  --ice-soft: rgba(148, 196, 219, 0.34);
-  --electric-soft: rgba(28, 28, 178, 0.13);
+  --deep-soft: rgba(29, 29, 29, 0.12);
+  --deep-line: rgba(29, 29, 29, 0.2);
+  --ice-soft: rgba(90, 255, 136, 0.18);
+  --electric-soft: rgba(90, 255, 136, 0.32);
 }
 
 * {
@@ -206,7 +206,7 @@ a {
 .ghost-button:hover {
   background: var(--ice-soft);
   border-color: var(--electric);
-  color: var(--electric);
+  color: var(--deep);
 }
 
 .primary-button {
@@ -220,13 +220,13 @@ a {
 .primary-button.light {
   background: var(--electric);
   border-color: var(--electric);
-  color: var(--ice);
+  color: var(--deep);
 }
 
 .primary-button.light:hover {
   background: var(--deep);
   border-color: var(--deep);
-  color: var(--ice);
+  color: var(--white);
 }
 
 .page {
@@ -345,7 +345,7 @@ h1 {
 }
 
 .proof-metrics {
-  border-bottom: 1px solid rgba(148, 196, 219, 0.34);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.28);
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(3, 1fr);
@@ -375,7 +375,7 @@ h1 {
 
 .proof-line {
   align-items: center;
-  border-bottom: 1px solid rgba(148, 196, 219, 0.25);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
   display: flex;
   font-size: 13px;
   gap: 11px;
@@ -586,8 +586,8 @@ h1 {
 
 .how-start {
   align-items: center;
-  background: var(--electric);
-  color: var(--ice);
+  background: var(--deep);
+  color: var(--white);
   display: flex;
   gap: 24px;
   justify-content: space-between;
@@ -613,8 +613,8 @@ h1 {
 }
 
 .how-start .primary-button.light {
-  background: var(--ice);
-  border-color: var(--ice);
+  background: var(--electric);
+  border-color: var(--electric);
   color: var(--deep);
   flex: 0 0 auto;
 }
@@ -622,7 +622,7 @@ h1 {
 .how-start .primary-button.light:hover {
   background: var(--deep);
   border-color: var(--deep);
-  color: var(--ice);
+  color: var(--white);
 }
 
 .workspace-intro {
@@ -859,12 +859,12 @@ select:focus,
 .status.active,
 .status.clear {
   background: var(--ice-soft);
-  color: var(--electric);
+  color: var(--deep);
 }
 
 .status.breached {
-  background: var(--electric);
-  color: var(--ice);
+  background: var(--deep);
+  color: var(--electric);
 }
 
 .status.paused {
@@ -968,8 +968,8 @@ select:focus,
 
 .activity-icon {
   align-items: center;
-  background: var(--electric);
-  color: var(--ice);
+  background: var(--deep);
+  color: var(--electric);
   display: inline-flex;
   flex: 0 0 auto;
   height: 31px;
@@ -1097,7 +1097,7 @@ select:focus,
 
 .modal-backdrop {
   align-items: center;
-  background: rgba(14, 31, 77, 0.7);
+  background: rgba(29, 29, 29, 0.74);
   display: flex;
   inset: 0;
   justify-content: center;
@@ -1110,7 +1110,7 @@ select:focus,
 .role-modal {
   background: var(--white);
   border: 1px solid var(--deep);
-  box-shadow: 0 28px 80px rgba(14, 31, 77, 0.3);
+  box-shadow: 0 28px 80px rgba(29, 29, 29, 0.3);
   max-height: min(760px, calc(100vh - 40px));
   overflow: auto;
   padding: clamp(20px, 3vw, 30px);
@@ -1166,15 +1166,15 @@ select:focus,
 
 .role-option:hover,
 .role-option.selected {
-  background: rgba(28, 28, 178, 0.16);
+  background: rgba(90, 255, 136, 0.24);
   border-color: var(--electric);
   transform: translateY(-1px);
 }
 
 .role-option-icon {
   align-items: center;
-  background: var(--electric);
-  color: var(--ice);
+  background: var(--deep);
+  color: var(--electric);
   display: inline-flex;
   height: 40px;
   justify-content: center;
@@ -1263,7 +1263,7 @@ select:focus,
 
 .toast {
   background: var(--deep);
-  border: 1px solid var(--ice);
+  border: 1px solid var(--electric);
   bottom: 22px;
   color: var(--ice);
   font-size: 12px;
@@ -1272,6 +1272,27 @@ select:focus,
   position: fixed;
   right: 22px;
   z-index: 30;
+}
+
+/* Keep the bright accent visible without using it as low contrast body copy. */
+.brand-note,
+.section-kicker,
+.audience-number,
+.step-number,
+.step-topline,
+.step-detail,
+.benefit-item > svg,
+.directory-controls svg,
+.service-note,
+.empty-state > svg,
+.data-notice svg,
+.role-option > svg,
+.workspace-stats strong {
+  color: var(--deep);
+}
+
+.how-start .section-kicker {
+  color: var(--white);
 }
 
 .spin {

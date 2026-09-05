@@ -11,7 +11,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       config={{
         appearance: {
           theme: "light",
-          accentColor: "#1c1cb2",
+          accentColor: "#5aff88",
           logo: "/icon.svg",
           landingHeader: "Terms in the open. A record when it matters.",
           walletList: [],
