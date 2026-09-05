@@ -248,22 +248,34 @@ a {
 }
 
 .signin p {
+  color: var(--white);
   font-size: 12px;
   margin: 0;
 }
 
 .signin strong {
-  color: var(--ice);
+  color: var(--electric);
   margin-right: 5px;
 }
 
 .eyebrow,
 .section-kicker {
-  color: var(--electric);
+  color: var(--deep);
   font-size: 10px;
   letter-spacing: 0.07em;
   margin: 0 0 14px;
   text-transform: uppercase;
+}
+
+.signin .ghost-button {
+  border-color: rgba(255, 255, 255, 0.55);
+  color: var(--white);
+}
+
+.signin .ghost-button:hover {
+  background: var(--electric);
+  border-color: var(--electric);
+  color: var(--deep);
 }
 
 h1,
