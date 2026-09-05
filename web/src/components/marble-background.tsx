@@ -20,6 +20,11 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.max(minimum, Math.min(maximum, value));
 }
 
+function smoothstep(value: number) {
+  const normalized = clamp(value, 0, 1);
+  return normalized * normalized * (3 - 2 * normalized);
+}
+
 export default function MarbleBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -55,25 +60,82 @@ export default function MarbleBackground() {
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
     };
 
-    const drawRibbon = (
-      points: Point[],
-      color: string,
-      lineWidth: number,
-      alpha: number,
-    ) => {
-      if (points.length < 2) return;
-      context.beginPath();
-      context.moveTo(points[0].x, points[0].y);
-      for (let index = 1; index < points.length - 1; index += 1) {
-        const current = points[index];
-        const next = points[index + 1];
-        context.quadraticCurveTo(current.x, current.y, (current.x + next.x) / 2, (current.y + next.y) / 2);
+    const pointerInfluence = (x: number, y: number, radius: number) => {
+      if (!pointer.active) return 0;
+      return smoothstep(1 - Math.hypot(x - pointer.x, y - pointer.y) / radius);
+    };
+
+    const boundaryPoint = (index: number, time: number, radius: number): Point => {
+      const progress = index / 42;
+      const y = progress * height;
+      const broadWave = Math.sin(progress * 8.2 + time * 0.22) * width * 0.13;
+      const fineWave = Math.sin(progress * 25 - time * 0.38) * width * 0.025;
+      const fold = Math.sin(progress * 3.1 - time * 0.17) * width * 0.045;
+      let x = width * 0.48 + broadWave + fineWave + fold;
+      const influence = pointerInfluence(x, y, radius);
+
+      if (influence > 0) {
+        const direction = x >= pointer.x ? 1 : -1;
+        const spread = width * 0.25 * influence * influence * clamp(pointer.speed / 22, 0.38, 1);
+        x += direction * spread;
+        x += (y - pointer.y) * influence * 0.12;
       }
-      const last = points[points.length - 1];
-      context.lineTo(last.x, last.y);
+
+      return { x, y };
+    };
+
+    const drawField = (boundary: Point[], side: "left" | "right", color: string, alpha: number) => {
+      context.beginPath();
+      if (side === "left") {
+        context.moveTo(0, 0);
+        boundary.forEach((point) => context.lineTo(point.x, point.y));
+        context.lineTo(0, height);
+      } else {
+        context.moveTo(width, 0);
+        context.lineTo(boundary[0].x, boundary[0].y);
+        boundary.slice(1).forEach((point) => context.lineTo(point.x, point.y));
+        context.lineTo(width, height);
+      }
+      context.closePath();
+      context.fillStyle = color;
+      context.globalAlpha = alpha;
+      context.fill();
+    };
+
+    const drawTendril = (
+      start: Point,
+      end: Point,
+      color: string,
+      widthValue: number,
+      alpha: number,
+      time: number,
+      index: number,
+    ) => {
+      const direction = end.x >= start.x ? 1 : -1;
+      const curve = Math.sin(time * 0.24 + index * 1.7) * height * 0.045;
+      const controlOne = {
+        x: start.x + (end.x - start.x) * 0.28,
+        y: start.y + curve,
+      };
+      const controlTwo = {
+        x: start.x + (end.x - start.x) * 0.78,
+        y: end.y - curve + Math.sin(index) * height * 0.025,
+      };
+      const localInfluence = pointerInfluence(start.x, start.y, Math.min(width, height) * 0.3);
+
+      context.beginPath();
+      context.moveTo(start.x, start.y);
+      context.bezierCurveTo(
+        controlOne.x + direction * localInfluence * width * 0.1,
+        controlOne.y,
+        controlTwo.x + direction * localInfluence * width * 0.14,
+        controlTwo.y,
+        end.x,
+        end.y,
+      );
       context.strokeStyle = color;
       context.globalAlpha = alpha;
-      context.lineWidth = lineWidth;
+      context.lineWidth = widthValue;
       context.lineCap = "round";
       context.lineJoin = "round";
       context.stroke();
@@ -82,95 +144,61 @@ export default function MarbleBackground() {
     const draw = (timestamp: number) => {
       const elapsed = (timestamp - startedAt) / 1000;
       const time = reducedMotion ? 0 : elapsed;
+      const radius = Math.min(width, height) * 0.28;
+      const boundary = Array.from({ length: 43 }, (_, index) => boundaryPoint(index, time, radius));
+
       context.clearRect(0, 0, width, height);
       context.globalCompositeOperation = "source-over";
+      drawField(boundary, "left", "#5aff88", 0.095);
+      drawField(boundary, "right", "#1d1d1d", 0.105);
 
-      const center = width * 0.46;
-      const pointerRadius = Math.min(width, height) * 0.24;
-      const pointerStrength = pointer.active ? clamp(pointer.speed / 24, 0.35, 1) : 0;
-      const boundary: Point[] = [];
+      for (let index = 0; index < 13; index += 1) {
+        const progress = (index + 1) / 14;
+        const boundaryIndex = Math.round(progress * 42);
+        const start = boundary[boundaryIndex];
+        const reachesLeft = index % 2 === 0;
+        const reach = width * (0.1 + (index % 4) * 0.055);
+        const end = {
+          x: start.x + (reachesLeft ? -reach : reach),
+          y: start.y + Math.sin(index * 2.4 + time * 0.2) * height * 0.07,
+        };
+        const color = reachesLeft ? "#1d1d1d" : "#5aff88";
+        const lineWidth = Math.max(12, width * (0.028 + (index % 3) * 0.012));
+        drawTendril(start, end, color, lineWidth, 0.13, time, index);
 
-      for (let index = 0; index <= 32; index += 1) {
-        const progress = index / 32;
-        const y = progress * height;
-        const slowWave = Math.sin(progress * 8.4 + time * 0.24) * width * 0.06;
-        const fastWave = Math.sin(progress * 21 - time * 0.42) * width * 0.018;
-        let x = center + slowWave + fastWave;
-
-        if (pointer.active) {
-          const distanceX = x - pointer.x;
-          const distanceY = y - pointer.y;
-          const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
-          const influence = Math.max(0, 1 - distance / pointerRadius);
-          const direction = distanceX >= 0 ? 1 : -1;
-          x += direction * influence * influence * width * 0.15 * pointerStrength;
-          x += (distanceY / Math.max(pointerRadius, 1)) * influence * width * 0.04 * pointerStrength;
+        if (index % 3 === 0) {
+          const innerEnd = {
+            x: start.x + (reachesLeft ? -reach * 0.62 : reach * 0.62),
+            y: end.y + height * 0.035,
+          };
+          drawTendril(start, innerEnd, reachesLeft ? "#5aff88" : "#ffffff", Math.max(5, lineWidth * 0.24), 0.11, time, index + 20);
         }
-
-        boundary.push({ x, y });
       }
 
-      const darkField = [...boundary, { x: 0, y: height }, { x: 0, y: 0 }];
-      context.beginPath();
-      context.moveTo(darkField[0].x, darkField[0].y);
-      darkField.slice(1).forEach((point) => context.lineTo(point.x, point.y));
-      context.closePath();
-      context.fillStyle = "#1d1d1d";
-      context.globalAlpha = 0.048;
-      context.fill();
-
-      for (let ribbon = -3; ribbon <= 3; ribbon += 1) {
-        const points = boundary.map((point, index) => {
-          const progress = index / 32;
-          const drift = Math.sin(progress * 13 + time * (0.3 + ribbon * 0.018) + ribbon) * width * 0.012;
-          const separation = ribbon * width * 0.017;
-          let x = point.x + drift + separation;
-
-          if (pointer.active) {
-            const distanceX = x - pointer.x;
-            const distanceY = point.y - pointer.y;
-            const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
-            const influence = Math.max(0, 1 - distance / pointerRadius);
-            const direction = distanceX >= 0 ? 1 : -1;
-            x += direction * influence * influence * width * 0.11 * pointerStrength;
-          }
-
-          return { x, y: point.y };
-        });
-
-        drawRibbon(
-          points,
-          ribbon % 2 === 0 ? "#5aff88" : "#1d1d1d",
-          Math.max(8, width * (ribbon === 0 ? 0.02 : 0.008)),
-          ribbon === 0 ? 0.095 : 0.05,
-        );
-      }
-
-      for (let index = 0; index < 15; index += 1) {
-        const progress = (index + 1) / 16;
-        const y = progress * height + Math.sin(time * 0.22 + index) * height * 0.035;
-        const boundaryPoint = boundary[Math.round(progress * 32)];
-        const direction = index % 2 === 0 ? -1 : 1;
-        const distance = width * (0.045 + (index % 4) * 0.014);
-        const x = boundaryPoint.x + direction * distance;
-        const radius = Math.max(2, width * (0.004 + (index % 3) * 0.0015));
-        const localPointerDistance = Math.hypot(x - pointer.x, y - pointer.y);
-        const pointerLift = pointer.active && localPointerDistance < pointerRadius
-          ? (1 - localPointerDistance / pointerRadius) * width * 0.035 * pointerStrength
-          : 0;
+      for (let index = 0; index < 16; index += 1) {
+        const progress = (index + 0.5) / 16;
+        const anchor = boundary[Math.round(progress * 42)];
+        const reachesLeft = index % 2 === 1;
+        const distance = width * (0.07 + (index % 5) * 0.024);
+        const x = anchor.x + (reachesLeft ? -distance : distance);
+        const y = anchor.y + Math.sin(index * 1.4 + time * 0.18) * height * 0.025;
+        const localInfluence = pointerInfluence(x, y, radius);
+        const direction = reachesLeft ? -1 : 1;
+        const spread = direction * localInfluence * width * 0.08 * clamp(pointer.speed / 22, 0.38, 1);
+        const dropRadius = Math.max(3, width * (0.006 + (index % 3) * 0.002));
 
         context.beginPath();
         context.ellipse(
-          x + direction * pointerLift,
+          x + spread,
           y,
-          radius * (1.8 + (index % 3) * 0.4),
-          radius,
-          Math.sin(index) * 0.5,
+          dropRadius * (1.5 + (index % 3) * 0.5),
+          dropRadius,
+          Math.sin(index * 0.8),
           0,
           TAU,
         );
-        context.fillStyle = index % 2 === 0 ? "#5aff88" : "#1d1d1d";
-        context.globalAlpha = 0.065;
+        context.fillStyle = reachesLeft ? "#1d1d1d" : "#5aff88";
+        context.globalAlpha = 0.14;
         context.fill();
       }
 
