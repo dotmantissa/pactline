@@ -48,7 +48,22 @@ a {
 }
 
 .app-shell {
+  isolation: isolate;
   min-height: 100vh;
+  position: relative;
+}
+
+.marble-background {
+  inset: 0;
+  pointer-events: none;
+  position: fixed;
+  z-index: 0;
+}
+
+.topbar,
+.page {
+  position: relative;
+  z-index: 1;
 }
 
 .topbar {
@@ -1119,6 +1134,23 @@ select:focus,
   padding: 20px;
   position: fixed;
   z-index: 20;
+}
+
+/* Let the moving ink remain part of the page without competing with the UI. */
+.topbar,
+.landing-hero,
+.landing-audience,
+.landing-footer-cta,
+.how-intro,
+.how-steps,
+.how-benefits,
+.workspace-intro,
+.workspace-stats,
+.service-card,
+.provider-service,
+.panel,
+.provider-empty {
+  background-color: rgba(255, 255, 255, 0.93);
 }
 
 .modal,
