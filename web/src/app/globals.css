@@ -330,7 +330,7 @@ h1 {
 .how-intro,
 .workspace-intro {
   align-items: end;
-  background: var(--white);
+  background: transparent;
   border-bottom: 1px solid var(--deep-line);
   display: grid;
   gap: clamp(28px, 7vw, 112px);
@@ -438,7 +438,7 @@ h1 {
 }
 
 .landing-audience {
-  background: var(--white);
+  background: transparent;
   border-bottom: 1px solid var(--deep-line);
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
@@ -497,7 +497,7 @@ h1 {
 
 .landing-footer-cta {
   align-items: center;
-  background: var(--white);
+  background: transparent;
   display: flex;
   gap: 24px;
   justify-content: space-between;
@@ -535,7 +535,7 @@ h1 {
 }
 
 .how-steps {
-  background: var(--white);
+  background: transparent;
   display: grid;
   gap: clamp(22px, 3vw, 48px);
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -584,7 +584,7 @@ h1 {
 }
 
 .how-benefits {
-  background: var(--white);
+  background: transparent;
   border-bottom: 1px solid var(--deep-line);
   border-top: 1px solid var(--deep-line);
   display: grid;
@@ -660,7 +660,7 @@ h1 {
 }
 
 .workspace-stats {
-  background: var(--white);
+  background: transparent;
   border-bottom: 1px solid var(--deep-line);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1134,23 +1134,6 @@ select:focus,
   padding: 20px;
   position: fixed;
   z-index: 20;
-}
-
-/* Let the moving ink remain part of the page without competing with the UI. */
-.topbar,
-.landing-hero,
-.landing-audience,
-.landing-footer-cta,
-.how-intro,
-.how-steps,
-.how-benefits,
-.workspace-intro,
-.workspace-stats,
-.service-card,
-.provider-service,
-.panel,
-.provider-empty {
-  background-color: rgba(255, 255, 255, 0.93);
 }
 
 .modal,
