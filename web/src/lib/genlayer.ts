@@ -3,7 +3,7 @@
 import { createClient, chains } from "genlayer-js";
 import type { Hash } from "genlayer-js/types";
 import { TransactionStatus, transactionsStatusNumberToName } from "genlayer-js/types";
-import { CONTRACT_ADDRESS, RPC_URL, TX_POLL_INTERVAL, TX_POLL_RETRIES } from "@/lib/constants";
+import { CLIENT_RPC_URL, CONTRACT_ADDRESS, TX_POLL_INTERVAL, TX_POLL_RETRIES } from "@/lib/constants";
 import type { Claim, Service, Snapshot, Subscription } from "@/lib/types";
 
 type Provider = {
@@ -19,7 +19,7 @@ let readClient: ReturnType<typeof createClient> | undefined;
 
 export async function canReachGenLayer(): Promise<boolean> {
   try {
-    const response = await fetch(RPC_URL, {
+    const response = await fetch(CLIENT_RPC_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -39,8 +39,29 @@ export async function canReachGenLayer(): Promise<boolean> {
   }
 }
 
+export async function readNativeBalance(address: string): Promise<bigint> {
+  const response = await fetch(CLIENT_RPC_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: Date.now(),
+      method: "eth_getBalance",
+      params: [address, "latest"],
+    }),
+    signal: AbortSignal.timeout(5000),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error("The wallet balance could not be loaded.");
+  const data = (await response.json()) as { result?: string; error?: { message?: string } };
+  if (data.error || !data.result) {
+    throw new Error(data.error?.message ?? "The wallet balance could not be loaded.");
+  }
+  return BigInt(data.result);
+}
+
 function reader() {
-  readClient ??= createClient({ chain: chains.studionet, endpoint: RPC_URL });
+  readClient ??= createClient({ chain: chains.studionet, endpoint: CLIENT_RPC_URL });
   return readClient;
 }
 
@@ -56,7 +77,7 @@ function selectiveProvider(provider: Provider) {
           method: "eth_signTransaction",
           params: [{ ...raw, type: 0, gasLimit: gas }],
         });
-        const response = await fetch(RPC_URL, {
+        const response = await fetch(CLIENT_RPC_URL, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -71,7 +92,7 @@ function selectiveProvider(provider: Provider) {
         return data.result;
       }
       if (method === "eth_estimateGas") return "0x4C4B40";
-      const response = await fetch(RPC_URL, {
+      const response = await fetch(CLIENT_RPC_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jsonrpc: "2.0", id: Date.now(), method, params }),
@@ -86,7 +107,7 @@ function selectiveProvider(provider: Provider) {
 function writer(address: string, provider: Provider) {
   return createClient({
     chain: chains.studionet,
-    endpoint: RPC_URL,
+    endpoint: CLIENT_RPC_URL,
     account: address as `0x${string}`,
     provider: selectiveProvider(provider) as never,
   });
@@ -95,7 +116,7 @@ function writer(address: string, provider: Provider) {
 async function waitFor(hash: Hash): Promise<TxResult> {
   for (let attempt = 0; attempt < TX_POLL_RETRIES; attempt += 1) {
     await new Promise((resolve) => setTimeout(resolve, TX_POLL_INTERVAL));
-    const response = await fetch(RPC_URL, {
+    const response = await fetch(CLIENT_RPC_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -181,6 +202,25 @@ export async function writeContract(
     functionName,
     args,
     value,
+  });
+  return waitFor(txHash as Hash);
+}
+
+export async function sendNative(
+  address: string,
+  provider: Provider,
+  recipient: string,
+  amountWei: bigint,
+) {
+  const txHash = await provider.request({
+    method: "eth_sendTransaction",
+    params: [
+      {
+        from: address,
+        to: recipient,
+        value: `0x${amountWei.toString(16)}`,
+      },
+    ],
   });
   return waitFor(txHash as Hash);
 }

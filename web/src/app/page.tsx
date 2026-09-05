@@ -19,12 +19,14 @@ import {
   LogOut,
   Plus,
   RefreshCw,
+  Send,
+  Wallet,
   X,
 } from "lucide-react";
 import { usePrivy } from "@privy-io/react-auth";
 import { useWallet } from "@/components/wallet-provider";
-import { formatGen, formatUptime } from "@/lib/constants";
-import { canReachGenLayer, readClaims, readServices, readSnapshots, readSubscriptions, writeContract } from "@/lib/genlayer";
+import { formatGen, formatGenWei, formatUptime, parseGenAmount } from "@/lib/constants";
+import { canReachGenLayer, readClaims, readNativeBalance, readServices, readSnapshots, readSubscriptions, sendNative, writeContract } from "@/lib/genlayer";
 import type { Claim, Service, Snapshot, Subscription } from "@/lib/types";
 
 type Role = "user" | "provider";
@@ -132,6 +134,98 @@ function RolePicker({ onClose, onContinue }: { onClose: () => void; onContinue: 
   );
 }
 
+function LogoutConfirmation({ busy, onClose, onConfirm }: { busy: boolean; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <motion.div className="modal confirmation-modal" initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }}>
+        <div className="modal-head">
+          <div>
+            <p className="section-kicker">Sign out</p>
+            <h2>Leave Pactline for now?</h2>
+            <p>Your embedded wallet stays yours. You can sign back in with the same email whenever you are ready.</p>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Close sign out confirmation" title="Close sign out confirmation"><X size={17} /></button>
+        </div>
+        <div className="modal-footer">
+          <span>You will need to sign in again to view your workspace.</span>
+          <div className="modal-actions">
+            <button className="ghost-button" onClick={onClose} type="button">Stay signed in</button>
+            <button className="primary-button" disabled={busy} onClick={onConfirm} type="button"><LogOut size={15} /> {busy ? "Signing out" : "Sign out"}</button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function WalletModal({ address, balance, balanceError, busy, onClose, onWithdraw }: { address: string; balance: bigint | null; balanceError: string; busy: boolean; onClose: () => void; onWithdraw: (recipient: string, amount: string) => void }) {
+  const [recipient, setRecipient] = useState("");
+  const [amount, setAmount] = useState("");
+  const [formError, setFormError] = useState("");
+
+  function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setFormError("");
+    if (!/^0x[a-fA-F0-9]{40}$/.test(recipient.trim())) {
+      setFormError("Enter a valid GenLayer wallet address.");
+      return;
+    }
+    try {
+      const amountWei = parseGenAmount(amount);
+      if (amountWei <= 0n) {
+        setFormError("Enter an amount greater than zero.");
+        return;
+      }
+      if (balance !== null && amountWei > balance) {
+        setFormError("That amount is higher than the available balance.");
+        return;
+      }
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : "Enter a valid GEN amount.");
+      return;
+    }
+    onWithdraw(recipient.trim(), amount.trim());
+  }
+
+  return (
+    <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <motion.div className="modal wallet-modal" initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }}>
+        <div className="modal-head">
+          <div>
+            <p className="section-kicker">Embedded wallet</p>
+            <h2>Withdraw GEN</h2>
+            <p>Send GEN from this embedded wallet to another GenLayer address. The transaction is signed by your wallet provider.</p>
+          </div>
+          <button className="icon-button" onClick={onClose} aria-label="Close wallet" title="Close wallet"><X size={17} /></button>
+        </div>
+        <div className="wallet-balance">
+          <span>Available balance</span>
+          <strong>{balance === null ? "Balance unavailable" : formatGenWei(balance)}</strong>
+          <small className="mono">{shortAddress(address)}</small>
+        </div>
+        {balanceError && <div className="data-notice wallet-error" role="status"><CircleAlert size={15} /> {balanceError}</div>}
+        <form onSubmit={submit}>
+          <div className="form-grid">
+            <div className="field full">
+              <label htmlFor="withdraw-recipient">Recipient address</label>
+              <input id="withdraw-recipient" value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder="0x..." autoComplete="off" required />
+            </div>
+            <div className="field full">
+              <label htmlFor="withdraw-amount">Amount in GEN</label>
+              <input id="withdraw-amount" inputMode="decimal" min="0.000000000000000001" step="any" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="0.01" required />
+            </div>
+          </div>
+          {formError && <p className="form-error" role="alert">{formError}</p>}
+          <div className="modal-footer">
+            <span>Double check the recipient. Blockchain transfers cannot be reversed.</span>
+            <button className="primary-button light" disabled={busy} type="submit">{busy ? <RefreshCw size={15} className="spin" /> : <Send size={15} />} {busy ? "Sending" : "Withdraw GEN"}</button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function HowItWorks({ onStart }: { onStart: () => void }) {
   return (
     <section className="how-page" aria-labelledby="how-title">
@@ -178,7 +272,7 @@ function ProviderWorkspace({ address, services, busy, dataUnavailable, onRegiste
   return (
     <section className="workspace" aria-labelledby="workspace-title">
       <div className="workspace-intro"><div><p className="eyebrow">Provider workspace</p><h1 id="workspace-title">Give the service a rule people can inspect.</h1><p className="hero-copy">List the service, set the terms, and keep collateral available for the compensation rule your customers will see.</p></div><button className="primary-button light" onClick={onRegister}><Plus size={16} /> List a service</button></div>
-      {dataUnavailable && <div className="data-notice" role="status"><CircleAlert size={15} /> Live contract data is temporarily unavailable. Try again shortly.</div>}
+      {dataUnavailable && <div className="data-notice" role="status"><CircleAlert size={15} /> Pactline is reconnecting to GenLayer. Your workspace will update when the network responds.</div>}
       <div className="workspace-stats"><div><span>Services listed</span><strong>{ownServices.length}</strong></div><div><span>Coverage posted</span><strong>{formatGen(ownServices.reduce((sum, service) => sum + service.collateral_wei, 0))}</strong></div><div><span>Subscribers</span><strong>{ownServices.reduce((sum, service) => sum + service.subscriber_count, 0)}</strong></div></div>
       <div className="section-head"><div><p className="section-kicker">Your listings</p><h2>Services with a promise behind them</h2><span>Every listing is monitored from its registered health URL.</span></div></div>
       {ownServices.length ? <div className="service-directory">{ownServices.map((service) => <article className="provider-service" key={service.service_id}><div><span className={`status ${service.status}`}>{service.status}</span><h3>{service.service_name}</h3><p>{service.service_url}</p></div><div className="provider-service-facts"><div><span>Collateral</span><strong>{formatGen(service.collateral_wei)}</strong></div><div><span>Reserved</span><strong>{formatGen(service.reserved_wei)}</strong></div><div><span>Revenue</span><strong>{formatGen(service.provider_revenue_wei)}</strong></div></div><div className="provider-service-actions"><button className="ghost-button compact" onClick={() => onCollateral(service)}><Plus size={13} /> Add collateral</button><button className="icon-button compact-icon" disabled={busy === `pause-${service.service_id}`} onClick={() => onPause(service)} aria-label="Pause or resume service" title="Pause or resume service"><CloudOff size={14} /></button></div></article>)}</div> : <div className="empty-state provider-empty"><Link2 size={27} /><h3>Nothing listed yet</h3><p>Your first service listing sets the terms customers will see and the collateral they can trust.</p><button className="primary-button light" onClick={onRegister}><Plus size={16} /> List your first service</button></div>}
@@ -211,7 +305,7 @@ function UserWorkspace({ services, subscriptions, claims, snapshots, address, bu
   return (
     <section className="workspace" aria-labelledby="workspace-title">
       <div className="workspace-intro"><div><p className="eyebrow">User workspace</p><h1 id="workspace-title">Choose services with terms you can read.</h1><p className="hero-copy">Browse the directory, compare terms and prices, and keep the evidence close if a service falls short.</p></div><button className="icon-button" onClick={onRefresh} aria-label="Refresh marketplace" title="Refresh marketplace"><RefreshCw size={16} /></button></div>
-      {dataUnavailable && <div className="data-notice" role="status"><CircleAlert size={15} /> Live contract data is temporarily unavailable. Try again shortly.</div>}
+      {dataUnavailable && <div className="data-notice" role="status"><CircleAlert size={15} /> Pactline is reconnecting to GenLayer. Your workspace will update when the network responds.</div>}
       <div className="workspace-stats"><div><span>Listed services</span><strong>{services.length}</strong></div><div><span>Your subscriptions</span><strong>{mySubscriptions.length}</strong></div><div><span>Compensation received</span><strong>{formatGen(myClaims.reduce((sum, claim) => sum + claim.settlement_wei, 0))}</strong></div></div>
       <div className="section-head directory-head"><div><p className="section-kicker">Service directory</p><h2>Choose your coverage</h2><span>Provider terms are visible before you subscribe.</span></div><div className="directory-controls"><label><Filter size={14} /><span className="sr-only">Filter services</span><select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value as ServiceFilter)}><option value="all">All services</option><option value="active">Open for signup</option><option value="paused">Paused listings</option></select></label><label><span className="sr-only">Sort services</span><select value={serviceSort} onChange={(event) => setServiceSort(event.target.value as ServiceSort)}><option value="newest">Newest first</option><option value="price">Lowest price</option><option value="coverage">Most coverage</option></select></label></div></div>
       {visibleServices.length ? <div className="service-directory">{visibleServices.map((service) => <ServiceCard key={service.service_id} service={service} subscribed={subscribedIds.has(service.service_id)} busy={busy === `subscribe-${service.service_id}`} onSubscribe={() => onSubscribe(service)} isProvider={false} />)}</div> : <div className="empty-state"><ClipboardCheck size={27} /><h3>{services.length ? "No services match that view" : "No services have opened their doors yet"}</h3><p>{services.length ? "Try another filter and the directory will show what is available." : "Once a provider lists a service, its terms and coverage will appear here."}</p></div>}
@@ -230,29 +324,41 @@ export default function Home() {
   const [demoService, setDemoService] = useState<ServiceStatus | null>(null);
   const [showRegister, setShowRegister] = useState(false);
   const [showRolePicker, setShowRolePicker] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showWallet, setShowWallet] = useState(false);
   const [serviceForm, setServiceForm] = useState(initialServiceForm);
   const [busy, setBusy] = useState("");
   const [toast, setToast] = useState("");
   const [role, setRole] = useState<Role | null>(null);
   const [view, setView] = useState<View>("landing");
   const [dataUnavailable, setDataUnavailable] = useState(false);
+  const [walletBalance, setWalletBalance] = useState<bigint | null>(null);
+  const [walletBalanceError, setWalletBalanceError] = useState("");
 
   const refresh = useCallback(async () => {
     const rpcReady = await canReachGenLayer();
-    let contractFailed = !rpcReady;
+    let successfulReads = 0;
     if (rpcReady) {
       const results = await Promise.allSettled([readServices(), readSubscriptions(), readSnapshots(), readClaims()]);
       const [servicesResult, subscriptionsResult, snapshotsResult, claimsResult] = results;
-      if (servicesResult.status === "fulfilled") setServices(servicesResult.value);
-      else contractFailed = true;
-      if (subscriptionsResult.status === "fulfilled") setSubscriptions(subscriptionsResult.value);
-      else contractFailed = true;
-      if (snapshotsResult.status === "fulfilled") setSnapshots(snapshotsResult.value);
-      else contractFailed = true;
-      if (claimsResult.status === "fulfilled") setClaims(claimsResult.value);
-      else contractFailed = true;
+      if (servicesResult.status === "fulfilled") {
+        successfulReads += 1;
+        setServices(servicesResult.value);
+      }
+      if (subscriptionsResult.status === "fulfilled") {
+        successfulReads += 1;
+        setSubscriptions(subscriptionsResult.value);
+      }
+      if (snapshotsResult.status === "fulfilled") {
+        successfulReads += 1;
+        setSnapshots(snapshotsResult.value);
+      }
+      if (claimsResult.status === "fulfilled") {
+        successfulReads += 1;
+        setClaims(claimsResult.value);
+      }
     }
-    setDataUnavailable(contractFailed);
+    setDataUnavailable(!rpcReady || successfulReads === 0);
 
     if (authenticated && role === "provider") {
       const statusResult = await Promise.allSettled([
@@ -290,6 +396,31 @@ export default function Home() {
     } else setShowRolePicker(true);
     setView("app");
   }, [address, authenticated]);
+
+  const refreshWalletBalance = useCallback(async () => {
+    if (!address) return;
+    try {
+      const balance = await readNativeBalance(address);
+      setWalletBalance(balance);
+      setWalletBalanceError("");
+    } catch (error) {
+      setWalletBalance(null);
+      setWalletBalanceError(error instanceof Error ? error.message : "The wallet balance could not be loaded.");
+    }
+  }, [address]);
+
+  useEffect(() => {
+    if (!authenticated || !address) {
+      // Reset wallet data when the authenticated wallet disappears.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setWalletBalance(null);
+      setWalletBalanceError("");
+      return;
+    }
+    void refreshWalletBalance();
+    const timer = window.setInterval(() => void refreshWalletBalance(), 15000);
+    return () => window.clearInterval(timer);
+  }, [address, authenticated, refreshWalletBalance]);
 
   const email = user?.linkedAccounts?.find((account) => account.type === "email")?.address ?? "";
   const currentRole = role;
@@ -410,6 +541,38 @@ export default function Home() {
     }
   }
 
+  async function withdrawFunds(recipient: string, amount: string) {
+    if (!address || !provider) return;
+    setBusy("withdraw");
+    try {
+      const result = await sendNative(address, provider, recipient, parseGenAmount(amount));
+      setToast(result.status === "finalized" ? "The GEN transfer is complete." : "The GEN transfer is still being decided.");
+      if (result.status === "finalized") {
+        setShowWallet(false);
+        await refreshWalletBalance();
+      }
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "The GEN transfer could not be completed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function confirmLogout() {
+    setBusy("logout");
+    try {
+      await disconnect();
+      setRole(null);
+      setView("landing");
+      setShowWallet(false);
+      setShowLogoutConfirm(false);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "You could not be signed out.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   const chartBars = Array.from({ length: 24 }, (_, index) => demoService?.outage && index > 17 ? { height: 22 + (index % 3) * 4, down: true } : { height: 48 + (index * 17) % 43, down: false });
 
   return (
@@ -420,7 +583,7 @@ export default function Home() {
           <button className={`top-tab ${(authenticated ? view === "app" : view === "landing") ? "selected" : ""}`} type="button" role="tab" aria-selected={authenticated ? view === "app" : view === "landing"} onClick={() => setView(authenticated ? "app" : "landing")}>{authenticated ? "Workspace" : "Home"}</button>
           <button className={`top-tab ${view === "how" ? "selected" : ""}`} type="button" role="tab" aria-selected={view === "how"} onClick={() => setView("how")}>How it works</button>
         </nav>
-        <div className="top-actions"><span className="network">Studio network</span>{authenticated ? <><span className="mono top-email">{email || shortAddress(address)}</span><button className="icon-button" onClick={() => void disconnect()} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button></> : <button className="primary-button" onClick={startAuth}><Link2 size={16} /> Sign in with email</button>}</div>
+        <div className="top-actions"><span className="network">Studio network</span>{authenticated ? <><span className="mono top-email">{email || shortAddress(address)}</span><button className="icon-button" onClick={() => setShowWallet(true)} aria-label="Open embedded wallet" title="Open embedded wallet"><Wallet size={16} /></button><button className="icon-button" onClick={() => setShowLogoutConfirm(true)} aria-label="Sign out" title="Sign out"><LogOut size={16} /></button></> : <button className="primary-button" onClick={startAuth}><Link2 size={16} /> Sign in with email</button>}</div>
       </header>
 
       <section className="page">
@@ -436,6 +599,8 @@ export default function Home() {
 
       <AnimatePresence>
         {showRolePicker && <RolePicker onClose={() => setShowRolePicker(false)} onContinue={chooseRole} />}
+        {showLogoutConfirm && <LogoutConfirmation busy={busy === "logout"} onClose={() => setShowLogoutConfirm(false)} onConfirm={() => void confirmLogout()} />}
+        {showWallet && address && <WalletModal address={address} balance={walletBalance} balanceError={walletBalanceError} busy={busy === "withdraw"} onClose={() => setShowWallet(false)} onWithdraw={(recipient, amount) => void withdrawFunds(recipient, amount)} />}
         {showRegister && <motion.div className="modal-backdrop" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => { if (event.target === event.currentTarget) setShowRegister(false); }}><motion.div className="modal" initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }}><div className="modal-head"><div><p className="section-kicker">Provider listing</p><h2>Put a service on the line</h2><p>These are the terms customers will see before they subscribe.</p></div><button className="icon-button" onClick={() => setShowRegister(false)} aria-label="Close service listing" title="Close service listing"><X size={17} /></button></div><form onSubmit={registerService}><div className="form-grid"><div className="field full"><label htmlFor="service_name">Service name</label><input id="service_name" value={serviceForm.service_name} onChange={(event) => setServiceForm({ ...serviceForm, service_name: event.target.value })} required /></div><div className="field full"><label htmlFor="service_url">Service health URL</label><input id="service_url" type="url" placeholder="https://your-service.com/health" value={serviceForm.service_url} onChange={(event) => setServiceForm({ ...serviceForm, service_url: event.target.value })} /></div><div className="field full"><label htmlFor="terms">Provider terms</label><textarea id="terms" value={serviceForm.terms} onChange={(event) => setServiceForm({ ...serviceForm, terms: event.target.value })} required /></div><div className="field"><label htmlFor="threshold">Uptime threshold</label><input id="threshold" type="number" min="0.01" max="100" step="0.01" value={serviceForm.threshold} onChange={(event) => setServiceForm({ ...serviceForm, threshold: event.target.value })} required /></div><div className="field"><label htmlFor="window_days">Measurement days</label><input id="window_days" type="number" min="1" max="365" value={serviceForm.window_days} onChange={(event) => setServiceForm({ ...serviceForm, window_days: event.target.value })} required /></div><div className="field"><label htmlFor="compensation_type">Compensation</label><select id="compensation_type" value={serviceForm.compensation_type} onChange={(event) => setServiceForm({ ...serviceForm, compensation_type: event.target.value })}><option value="refund">Refund in GEN</option><option value="credit">Service credit recorded</option></select></div><div className="field"><label htmlFor="compensation">Compensation share</label><input id="compensation" type="number" min="0.01" max="100" step="0.01" value={serviceForm.compensation} onChange={(event) => setServiceForm({ ...serviceForm, compensation: event.target.value })} required /></div><div className="field"><label htmlFor="price">Subscription price in GEN</label><input id="price" type="number" min="0.001" step="0.001" value={serviceForm.price} onChange={(event) => setServiceForm({ ...serviceForm, price: event.target.value })} required /></div><div className="field"><label htmlFor="collateral">Coverage collateral in GEN</label><input id="collateral" type="number" min="0.001" step="0.001" value={serviceForm.collateral} onChange={(event) => setServiceForm({ ...serviceForm, collateral: event.target.value })} required /></div></div><div className="modal-footer"><span>Provider collateral funds valid subscriber claims.</span><button className="primary-button light" disabled={busy === "register"} type="submit">{busy === "register" ? <RefreshCw size={15} className="spin" /> : <Link2 size={15} />} List service</button></div></form></motion.div></motion.div>}
       </AnimatePresence>
       <AnimatePresence>{toast && <motion.div className="toast" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 12 }} onAnimationComplete={() => window.setTimeout(() => setToast(""), 4200)}>{toast}</motion.div>}</AnimatePresence>
